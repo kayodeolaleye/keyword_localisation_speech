@@ -12,9 +12,9 @@ class Flickr8kDataset(Dataset):
     def __init__(self, args, subset):
         with open(pickle_file, 'rb') as file:
             data = pickle.load(file)
-        self.vocab = data['VOCAB']
+        # self.vocab = data['VOCAB']
         self.samples = data[subset]
-        self.args = args
+        # self.args = args
         print("Loading {} {} samples...".format(len(self.samples), subset))
 
     def __getitem__(self, i):
@@ -22,6 +22,7 @@ class Flickr8kDataset(Dataset):
         wave = sample["wave"]
         trn = sample["trn"]
         soft = sample["soft"]
+        dur = sample["dur"]
         feature = extract_feature(input_file=wave, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True)
     
         # feature = build_LFR_features(feature, m=self.args.LFR_m, n = self.args.LFR_n)
@@ -30,7 +31,7 @@ class Flickr8kDataset(Dataset):
         
         # feature = spec_augment(feature)
         
-        return feature, trn, soft
+        return feature, trn, soft, dur
 
     def __len__(self):
         return len(self.samples)
@@ -54,7 +55,7 @@ def pad_collate(batch):
         # max_target_len = max_target_len if max_target_len > len(trn) else len(trn)
 
     for i, elem in enumerate(batch):
-        feature, trn, soft = elem
+        feature, trn, soft, dur = elem
         input_length = feature.shape[0]
         input_dim = feature.shape[1]
         padded_input = np.zeros((max_input_len, input_dim), dtype=np.float32)
@@ -62,10 +63,10 @@ def pad_collate(batch):
         padded_input[:length, :] = feature[:length, :]
         bow_vector = get_bow_vector(trn)
     
-        batch[i] = (np.transpose(padded_input, (1, 0)), bow_vector, soft, input_length)
+        batch[i] = (np.transpose(padded_input, (1, 0)), bow_vector, soft, dur, input_length)
 
     # sort it by input lengths (long to short)
-    batch.sort(key=lambda x: x[3], reverse=True)
+    batch.sort(key=lambda x: x[4], reverse=True)
 
     return default_collate(batch)
 
@@ -87,12 +88,15 @@ if __name__ == "__main__":
     soft = train_dataset[10][2]
     print('soft: ', str(soft.shape))
 
+    dur = train_dataset[10][3]
+    print('dur: ', str(dur))
 
     for data in train_loader:
-        padded_input, bow_target, soft_target, input_lengths = data
+        padded_input, bow_target, soft_target, target_dur, input_lengths = data
         print('padded_input: ' + str(padded_input))
         print('bow_target: ' + str(bow_target))
         print('soft_target: ' + str(soft_target))
+        print('target_duration: ' + str(target_dur))
         print('input_lengths: ' + str(input_lengths))
         print("Shape of utt: ", padded_input.shape)
         print("Shape of bow target: ", bow_target.shape)
