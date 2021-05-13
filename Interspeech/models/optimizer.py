@@ -25,3 +25,15 @@ class PSCOptimizer(object):
                                               self.step_num * (self.warmup_steps ** (-1.5)))
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = self.lr
+
+
+#TODO: Create a separate optimizer for CNNPool, CNNAttend, and CNNPoolAtend
+
+class CNNPoolOptimizer(object):
+    pass
+
+class CNNAttend(object):
+    pass
+
+class CNNPoolAtend(object):
+    pass

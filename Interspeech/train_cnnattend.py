@@ -11,7 +11,7 @@ import torch.nn as nn
 
 from config import device, num_workers, print_freq, trained_model_dir
 from data_gen import Flickr8kDataset, pad_collate
-from models.psc import PSC
+from models.cnnattend import CNNAttend
 from models.optimizer import PSCOptimizer
 
 from utils import ensure_folder, get_logger, parse_args, save_checkpoint, AverageMeter, write_hist_to_tb, write_scalar_to_tb
@@ -20,7 +20,8 @@ def train_net(args):
     torch.manual_seed(7)
     np.random.seed(7)
 
-    model_id = str(calendar.timegm(time.gmtime())) + "_psc"
+    model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type
+    print("Model ID: ", model_id)
     model_path = path.join(trained_model_dir, model_id)
     ensure_folder(model_path)
     checkpoint = args.checkpoint
@@ -35,7 +36,7 @@ def train_net(args):
     # Initialise / load checkpoint
     if checkpoint is None:
         # model
-        model = PSC(args.out_dim, args.temp_ratio)
+        model = CNNAttend(args.vocab_size, args.embed_size)
         print(model)
         model.to(device)
 
@@ -104,11 +105,11 @@ def train_net(args):
         save_checkpoint(
             epoch, epochs_since_improvement, model, optimizer, best_loss, is_best_loss, 
             best_precision, is_best_precision, best_recall, is_best_recall, best_fscore, 
-            is_best_fscore, args.target_type, model_path)
+            is_best_fscore, model_path)
 
 
     
-    torch.save(model.state_dict(), path.join(model_path, args.target_type + "_model.pth"))
+    torch.save(model.state_dict(), path.join(model_path, "model.pth"))
 
 def train(train_loader, model, optimizer, epoch, logger, target_type):
     model.train()
@@ -120,8 +121,7 @@ def train(train_loader, model, optimizer, epoch, logger, target_type):
     for i, (data) in enumerate(train_loader):
         # Move to GPU, if available
         target = None
-        padded_input, bow_target, soft_target, input_lengths = data
-        # padded_input = torch.transpose(padded_input, 2, 1)
+        padded_input, bow_target, soft_target, _, input_lengths = data
         padded_input = padded_input.to(device)
         input_lengths = input_lengths.to(device)
         if target_type == 'bow':
@@ -133,12 +133,12 @@ def train(train_loader, model, optimizer, epoch, logger, target_type):
             break
 
         # Forward prop.
-        out, frame_scores = model(padded_input, input_lengths)
+        out, attention_Weights = model(padded_input)
         loss = criterion(torch.sigmoid(out), target)
 
         # Back prop.
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
 
         # update weights
         optimizer.step()
@@ -167,13 +167,13 @@ def valid(valid_loader, model, logger, threshold):
     # Batches
     for data in tqdm(valid_loader):
         # Move to GPU, if available
-        padded_input, bow_target, _, input_lengths = data
+        padded_input, bow_target, _, __, input_lengths = data
         # padded_input = torch.transpose(padded_input, 2, 1)
         padded_input = padded_input.to(device)
         input_lengths = input_lengths.to(device)
         target = bow_target.to(device)
         # Forward prop.
-        out, frame_scores = model(padded_input, input_lengths)
+        out, attention_weights = model(padded_input)
         loss = criterion(torch.sigmoid(out), target)
 
         # Keep track of metrics
@@ -208,5 +208,5 @@ if __name__ == '__main__':
     main()
 
 
-# python train_psc.py --target_type bow --val_threshold 0.4 --out_dim 1000 --temp_ratio 1.2 --epochs 25
+# python train_cnnattend.py --target_type bow --val_threshold 0.4 --vocab_size 1000 --embed_size 1000 --epochs 25
 # tensorboard --logdir=runs

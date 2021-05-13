@@ -7,7 +7,7 @@ import scipy
 import torch
 import logging
 import numpy as np
-from config import flickr8k_folder, trained_model_dir
+from config import flickr8k_folder
 import librosa
 
 
@@ -57,8 +57,8 @@ def parse_args():
     parser.add_argument('--checkpoint', type=str, default=None, help='checkpoint')
     parser.add_argument('--target_type', type=str, help='provide the type of target to use for supervision')
     parser.add_argument('--val_threshold', type=float, help='threshold to use during validation')
-    parser.add_argument('--out_dim', default=1000, type=int, help='output dimension')
-    parser.add_argument('--temp_ratio', default=1.2, type=float, help='temperature parameter for LogSumExp pooling function')
+    parser.add_argument('--embed_size', default=1024, type=int, help='embedding dimension / dimension of the convolutional feature')
+    parser.add_argument('--vocab_size', default=67, type=int, help='Size of speech corpus vocabulary')
 
     args = parser.parse_args()
     return args
@@ -224,7 +224,7 @@ def get_logger():
     logger.setLevel(logging.INFO)
     return logger
 
-def save_checkpoint(epoch, epochs_since_improvement, model, optimizer, loss, is_best_loss, precision, is_best_precision, recall, is_best_recall, fscore, is_best_fscore, target_type, model_path):
+def save_checkpoint(epoch, epochs_since_improvement, model, optimizer, loss, is_best_loss, precision, is_best_precision, recall, is_best_recall, fscore, is_best_fscore, model_path):
     state = {'epoch': epoch,
     'epochs_since_improvement':epochs_since_improvement,
     'loss': loss,
@@ -235,11 +235,11 @@ def save_checkpoint(epoch, epochs_since_improvement, model, optimizer, loss, is_
     'optimizer': optimizer
     }
 
-    filename = path.join(model_path, 'checkpoint_{}.tar'.format(target_type))
+    filename = path.join(model_path, 'checkpoint.tar')
     torch.save(state, filename)
     # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
     if is_best_loss or is_best_precision or is_best_recall or is_best_fscore:
-        torch.save(state, path.join(model_path, 'BEST_checkpoint_' + target_type + '.tar'))
+        torch.save(state, path.join(model_path, 'BEST_checkpoint.tar'))
 
 class AverageMeter(object):
     """
@@ -261,9 +261,17 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+def get_gt_token_duration(target_dur, valid_gt_trn):
+            
+            token_dur = []
+            for start_end, dur, tok in target_dur:
+                if tok.casefold() not in [valid_tok for valid_tok, _ in valid_gt_trn]:
+                    continue
+                token_dur.append((start_end, tok.casefold()))
+            return token_dur
 
-def get_metric_count(hyp_trn, gt_trn):
-    # Get the number of true positive (n_tp), true positive + false positive (n_tp_fp) and true positive + false negative (n_tp_fn) for a one sample
+def get_detection_metric_count(hyp_trn, gt_trn):
+    # Get the number of true positive (n_tp), true positive + false positive (n_tp_fp) and true positive + false negative (n_tp_fn) for a one sample on the detection task
     correct_tokens = set([token for token in gt_trn if token in hyp_trn])
     n_tp = len(correct_tokens)
     n_tp_fp = len(hyp_trn)
@@ -271,9 +279,44 @@ def get_metric_count(hyp_trn, gt_trn):
 
     return n_tp, n_tp_fp, n_tp_fn
 
-def eval_prf(n_tp, n_tp_fp, n_tp_fn):
+def eval_detection_prf(n_tp, n_tp_fp, n_tp_fn):
     precision = n_tp / n_tp_fp
     recall = n_tp / n_tp_fn
     fscore = 2 * precision * recall / (precision + recall)
 
     return precision, recall, fscore
+
+def get_localisation_metric_count(hyp_loc, gt_loc):
+    # Get the number of true positive (n_tp), true positive + false positive (n_tp_fp) and true positive + false negative (n_tp_fn) for a one sample on the localisation task
+    n_tp = 0
+    n_fp = 0
+    n_fn = 0
+
+    for gt_start_end_frame, gt_token in gt_loc:
+        if gt_token not in [hyp_token for _, hyp_token in hyp_loc]:
+            n_fn += 1
+            continue
+        for hyp_frame, hyp_token in hyp_loc:
+            if hyp_token == gt_token and (gt_start_end_frame[0] <= hyp_frame < gt_start_end_frame[1] or gt_start_end_frame[0] < hyp_frame <= gt_start_end_frame[1]):
+                n_tp += 1
+            elif hyp_token == gt_token and (hyp_frame < gt_start_end_frame[0] or gt_start_end_frame[1] < hyp_frame):
+                n_fp += 1
+
+    return n_tp, n_fp, n_fn
+
+def eval_localisation_prf(n_tp, n_fp, n_fn):
+    precision = n_tp / (n_tp + n_fp)
+    recall = n_tp / (n_tp +n_fn)
+    fscore = 2 * precision * recall / (precision + recall)
+
+    return precision, recall, fscore
+
+
+def compute_cam(grad_cam, x, iVOCAB):
+    cams_dict = {}
+    for i in range(1000):
+        token = iVOCAB[i]
+        cam = grad_cam.generate_cam(x, target_class=i)
+        #cam = np.broadcast_to(cam, (39, cam.shape[0]))
+        cams_dict[token] = cam
+    return cams_dict
