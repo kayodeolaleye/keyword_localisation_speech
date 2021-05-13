@@ -50,7 +50,7 @@ To visualise the training process
 
 ### Evaluate PSC model
 
-    python test_psc.py --model_path 1620295553_psc --target_type bow --test_threshold 0.4
+    python test_psc.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 ### Train CNN_Pool model Bag-of-words (bow) targets
 
@@ -58,7 +58,7 @@ To visualise the training process
 
 ### Evaluate CNN_Pool model
 
-    $ python test_cnnpool.py --model_path 1620295553_cnnpool --target_type bow --test_threshold 0.4
+    $ python test_cnnpool.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 
 ### Train PSC model using soft (visual) targets
@@ -71,15 +71,15 @@ To visualise the training process
 
 ### Evaluate PSC model
 
-    $ python test_psc.py --model_path 1620295553_psc --target_type soft --test_threshold 0.4
+    $ python test_psc.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 ### Train CNN_Pool model soft (visual) targets
 
-    $ python train_cnnpool.py --target_type bow --val_threshold 0.4 --out_dim 1000 --epochs 25
+    $ python train_cnnpool.py --target_type soft --val_threshold 0.4 --out_dim 1000 --epochs 25
 
 ### Evaluate CNN_Pool model
 
-    $ python test_cnnpool.py --model_path 1620295553_cnnpool --target_type soft --test_threshold 0.4
+    $ python test_cnnpool.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 
 ## Results
