@@ -62,7 +62,7 @@ To visualise the training process
 
 ### Train CNNAttend model using soft (visual) targets
 
-    $ python train_cnnattend.py --target_type bow --val_threshold 0.4 --vocab_size 1000 --embed_size 1000 --epochs 25
+    $ python train_cnnattend.py --target_type soft --val_threshold 0.4 --vocab_size 1000 --embed_size 1000 --epochs 25
 
 To visualise the training process
 
@@ -74,7 +74,7 @@ To visualise the training process
 
 ### Train CNN_PoolAttend model soft (visual) targets
 
-    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 1000 --embed_size 1024 --epochs 25
+    $ python train_cnnpoolattend.py --target_type soft --val_threshold 0.4 --vocab_size 1000 --embed_size 1024 --epochs 25
 
 ### Evaluate CNN_PoolAttend model
 
