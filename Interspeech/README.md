@@ -70,7 +70,7 @@ To visualise the training process
 
 ### Evaluate CNNAttend model
 
-    $ python test.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    $ python test.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 ### Train CNN_PoolAttend model soft (visual) targets
 
@@ -78,7 +78,7 @@ To visualise the training process
 
 ### Evaluate CNN_PoolAttend model
 
-    $ python test.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    $ python test.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 
 ## Results
