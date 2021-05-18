@@ -6,6 +6,7 @@ import argparse
 import scipy
 import torch
 import logging
+import glob
 import numpy as np
 from config import flickr8k_folder, trained_model_dir
 import librosa
@@ -42,7 +43,7 @@ def parse_args():
                         help='Batch size')
     parser.add_argument('--maxlen_in', default=800, type=int, metavar='ML',
                         help='Batch size is reduced if the input sequence length > ML')
-    parser.add_argument('--num_workers', default=4, type=int,
+    parser.add_argument('--num_workers', default=1, type=int,
                         help='Number of workers to generate minibatch')
     # optimizer
     parser.add_argument('--optimizer', default='adam', type=str,
@@ -144,8 +145,29 @@ def get_soft_tags(viz_tag_fn, output_dir=None):
 
     return soft_tags_dict, vocab_dict
 
-def preemphasis(x, preemph):
-    return scipy.signal.lfilter([1, -preemph], [1], x)
+# def preemphasis(x, preemph):
+#     return scipy.signal.lfilter([1, -preemph], [1], x)
+
+def preemphasis(signal, coeff=0.97):
+    """Perform preemphasis on the input `signal`."""    
+    return np.append(signal[0], signal[1:] - coeff*signal[:-1])
+
+def extract_mfcc(input_file):
+    """
+    Extract MFCCs for a single audio file.
+    """
+    signal, sample_rate = librosa.core.load(input_file, sr=None)
+    signal = preemphasis(signal, coeff=0.97)
+    mfcc = librosa.feature.mfcc(
+        signal, sr=sample_rate, n_mfcc=13, n_mels=24,  #dct_type=3,
+        n_fft=int(np.floor(0.025*sample_rate)),
+        hop_length=int(np.floor(0.01*sample_rate)), fmin=64, fmax=8000,
+        )
+    mfcc_delta = librosa.feature.delta(mfcc)
+    mfcc_delta_delta = librosa.feature.delta(mfcc, order=2)
+    feat = np.hstack([mfcc.T, mfcc_delta.T, mfcc_delta_delta.T])
+
+    return feat
 
 
 def extract_feature(
@@ -196,7 +218,7 @@ def extract_feature(
 # Tensorboard functions
 def write_scalar_to_tb(
             writer,
-            lr,
+            # lr,
             epoch,
             train_loss,
             valid_loss,
@@ -204,7 +226,7 @@ def write_scalar_to_tb(
             valid_recall,
             valid_fscore):
             writer.add_scalar('model/train_loss', train_loss, epoch)
-            writer.add_scalar('model/Learning_rate', lr, epoch)
+            # writer.add_scalar('model/Learning_rate', lr, epoch)
             writer.add_scalar('model/valid_loss', valid_loss, epoch)
             writer.add_scalar('model/valid_precision', valid_precision, epoch)
             writer.add_scalar('model/valid_recall', valid_recall, epoch)
@@ -306,7 +328,7 @@ def get_localisation_metric_count(hyp_loc, gt_loc):
 
 def eval_localisation_prf(n_tp, n_fp, n_fn):
     precision = n_tp / (n_tp + n_fp)
-    recall = n_tp / (n_tp +n_fn)
+    recall = n_tp / (n_tp + n_fn)
     fscore = 2 * precision * recall / (precision + recall)
 
     return precision, recall, fscore

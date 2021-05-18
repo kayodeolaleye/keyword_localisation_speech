@@ -38,7 +38,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     logger = get_logger()
-
+    VOCAB = None
     with open(pickle_file, "rb") as f:
         data = pickle.load(f)
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         print("Invalid target type")
 
     
-    samples = data["dev"] # change to "test" later on
+    samples = data["test"] # change to "test" later on
 
     # filename = path.join(trained_model_dir, args.model_path,, "psc_" + args.target_type + "_model.pth")
     # model = PSC(args.out_dim, args.temp_ratio)
@@ -124,9 +124,9 @@ if __name__ == "__main__":
         token_gt_duration = get_gt_token_duration(target_dur, valid_gt_trn) # ground truth start and end time for each word in utterance
 
         l_analysis = get_localisation_metric_count(hyp_duration, token_gt_duration)
-        l_n_tp += d_analysis[0]
-        l_n_fp += d_analysis[1]
-        l_n_fn += d_analysis[2]
+        l_n_tp += l_analysis[0]
+        l_n_fp += l_analysis[1]
+        l_n_fn += l_analysis[2]
 
     # Compute precision, recall and fscore for detection task
     d_precision, d_recall, d_fscore = eval_detection_prf(d_n_tp, d_n_tp_fp, d_n_tp_fn)
@@ -150,10 +150,8 @@ if __name__ == "__main__":
     print("-"*79)
     print("LOCALISATION SCORES: ")
     print("Sigmoid threshold: {:.2f}".format(args.test_threshold))
-    print("No. predictions:", l_n_fp)
-    print("No. true tokens:", l_n_fn)
-    print("Precision: {} / {} = {:.4f}%".format(l_n_tp, l_n_fp, l_precision*100.))
-    print("Recall: {} / {} = {:.4f}%".format(l_n_tp, l_n_fn, l_recall*100.))
+    print("Precision: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fp), l_precision*100.))
+    print("Recall: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fn), l_recall*100.))
     print("F-score: {:.4f}%".format(l_fscore*100.))
     print("-"*79)
 

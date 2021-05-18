@@ -80,7 +80,6 @@ To visualise the training process
 
     $ python test.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
-
 ## Results
 
 

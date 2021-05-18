@@ -42,6 +42,9 @@ def train_net(args):
 
         optimizer = PSCOptimizer(torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-09))
 
+        # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+
     else:
         checkpoint = torch.load(checkpoint)
         start_epoch = checkpoint['epoch'] + 1

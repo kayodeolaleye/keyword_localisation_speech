@@ -17,8 +17,8 @@ from models.optimizer import PSCOptimizer
 from utils import ensure_folder, get_logger, parse_args, save_checkpoint, AverageMeter, write_hist_to_tb, write_scalar_to_tb
 
 def train_net(args):
-    torch.manual_seed(7)
-    np.random.seed(7)
+    torch.manual_seed(42)
+    np.random.seed(42)
 
     model_id = str(calendar.timegm(time.gmtime())) + "_psc_" + args.target_type
     print("Model ID: ", model_id)
@@ -40,7 +40,8 @@ def train_net(args):
         print(model)
         model.to(device)
 
-        optimizer = PSCOptimizer(torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-09))
+        # optimizer = PSCOptimizer(torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-09))
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     else:
         checkpoint = torch.load(checkpoint)
@@ -52,9 +53,9 @@ def train_net(args):
     logger = get_logger()
 
     # Custom dataloaders
-    train_dataset = Flickr8kDataset(args, 'train')
+    train_dataset = Flickr8kDataset(args, 'train', args.target_type)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=True, num_workers=num_workers)
-    valid_dataset = Flickr8kDataset(args, 'dev')
+    valid_dataset = Flickr8kDataset(args, 'dev', args.target_type)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False, num_workers=num_workers)
 
     # Epochs
@@ -62,17 +63,17 @@ def train_net(args):
         # One epoch's training
         train_loss = train(train_loader, model=model, optimizer=optimizer, epoch=epoch, logger=logger, target_type=args.target_type)
         
-        lr = optimizer.lr
-        print('\nLearning rate: {}'.format(lr))
-        step_num = optimizer.step_num
-        print('Step num: {}\n'.format(step_num))
+        # lr = optimizer.lr
+        # print('\nLearning rate: {}'.format(lr))
+        # step_num = optimizer.step_num
+        # print('Step num: {}\n'.format(step_num))
         
 
         # One epoch's validation
         valid_loss, valid_precision, valid_recall, valid_fscore = valid(valid_loader=valid_loader, model=model, logger=logger, threshold=args.val_threshold)
         write_scalar_to_tb(
             writer,
-            lr,
+            # lr,
             epoch,
             train_loss,
             valid_loss,
@@ -106,9 +107,7 @@ def train_net(args):
             epoch, epochs_since_improvement, model, optimizer, best_loss, is_best_loss, 
             best_precision, is_best_precision, best_recall, is_best_recall, best_fscore, 
             is_best_fscore, model_path)
-
-
-    
+  
     torch.save(model.state_dict(), path.join(model_path, "model.pth"))
 
 def train(train_loader, model, optimizer, epoch, logger, target_type):
@@ -165,6 +164,7 @@ def valid(valid_loader, model, logger, threshold):
     criterion = nn.BCELoss()
 
     # Batches
+    
     for data in tqdm(valid_loader):
         # Move to GPU, if available
         padded_input, bow_target, _, __, input_lengths = data

@@ -1,15 +1,17 @@
 from inspect import ArgInfo
 import pickle
+import random
 import torch
 from os import path
-from utils import extract_feature, parse_args
+from utils import extract_feature, parse_args, extract_mfcc
 from torch.utils.data import Dataset
 import numpy as np
 from torch.utils.data.dataloader import default_collate
-from config import pickle_file, input_dim, num_workers, tran_folder, soft_tags_fn
+from config import pickle_file, num_workers, tran_folder
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, args, subset):
+    def __init__(self, args, subset, target_type):
+        self.target_type = target_type
         with open(pickle_file, 'rb') as file:
             data = pickle.load(file)
         # self.vocab = data['VOCAB']
@@ -23,21 +25,28 @@ class Flickr8kDataset(Dataset):
         trn = sample["trn"]
         soft = sample["soft"]
         dur = sample["dur"]
+        bow = get_bow_vector(trn, self.target_type)
         feature = extract_feature(input_file=wave, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True)
-    
+        # feature = extract_mfcc(input_file=wave)
         # feature = build_LFR_features(feature, m=self.args.LFR_m, n = self.args.LFR_n)
         # Zero mean and unit variance
         feature = (feature - feature.mean()) / feature.std()
         
-        # feature = spec_augment(feature)
+        feature = spec_augment(feature)
         
-        return feature, trn, soft, dur
+        return feature, bow, soft, dur
 
     def __len__(self):
         return len(self.samples)
 
-def get_bow_vector(tran):
-    vocab_fn = path.join(tran_folder, "VOCAB.pkl")
+def get_bow_vector(tran, target_type):
+    vocab_fn = None
+    if target_type == "bow":
+        vocab_fn = path.join(tran_folder, "VOCAB.pkl")
+    elif target_type == "soft":
+         vocab_fn = path.join(tran_folder, "VOCAB_soft.pkl")
+    else:
+        print("Invalid target type")
     with open(vocab_fn, "rb") as f:
         vocab = pickle.load(f)
     bow_vector =list( np.zeros((len(vocab))))
@@ -55,20 +64,47 @@ def pad_collate(batch):
         # max_target_len = max_target_len if max_target_len > len(trn) else len(trn)
 
     for i, elem in enumerate(batch):
-        feature, trn, soft, dur = elem
+        feature, bow, soft, dur = elem
         input_length = feature.shape[0]
         input_dim = feature.shape[1]
         padded_input = np.zeros((max_input_len, input_dim), dtype=np.float32)
         length = min(input_length, max_input_len)
         padded_input[:length, :] = feature[:length, :]
-        bow_vector = get_bow_vector(trn)
+
+        # bow_vector = get_bow_vector(trn)
     
-        batch[i] = (np.transpose(padded_input, (1, 0)), bow_vector, soft, dur, input_length)
+        batch[i] = (np.transpose(padded_input, (1, 0)), bow, soft, dur, input_length)
 
     # sort it by input lengths (long to short)
     batch.sort(key=lambda x: x[4], reverse=True)
 
     return default_collate(batch)
+
+
+def spec_augment(spec: np.ndarray,
+                 num_mask=2,
+                 freq_masking=0.15,
+                 time_masking=0.20,
+                 value=0):
+    spec = spec.copy()
+    num_mask = random.randint(1, num_mask)
+    for i in range(num_mask):
+        all_freqs_num, all_frames_num = spec.shape
+        freq_percentage = random.uniform(0.0, freq_masking)
+
+        num_freqs_to_mask = int(freq_percentage * all_freqs_num)
+        f0 = np.random.uniform(low=0.0, high=all_freqs_num - num_freqs_to_mask)
+        f0 = int(f0)
+        spec[f0:f0 + num_freqs_to_mask, :] = value
+
+        time_percentage = random.uniform(0.0, time_masking)
+
+        num_frames_to_mask = int(time_percentage * all_frames_num)
+        t0 = np.random.uniform(low=0.0, high=all_frames_num - num_frames_to_mask)
+        t0 = int(t0)
+        spec[:, t0:t0 + num_frames_to_mask] = value
+    return spec
+
 
 if __name__ == "__main__":
     args = parse_args()
