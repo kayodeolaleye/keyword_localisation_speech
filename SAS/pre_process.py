@@ -13,9 +13,9 @@ def get_data(split):
     print("Getting {} data...".format(split))
     tran_fn = path.join(tran_folder, "flickr8k_transcript.txt")
     tran_dict = get_tran_dict(tran_fn)
-    word_tokens = []
-    for utt in tran_dict:
-        word_tokens.extend(tran_dict[utt])
+    # word_tokens = []
+    # for utt in tran_dict:
+    #     word_tokens.extend(tran_dict[utt])
     
     # Get soft labels dictionary from an external visual tagger for 1000 keywords
     soft_tags_dict, _ = get_soft_tags(soft_tags_fn)
@@ -72,12 +72,15 @@ def get_vocab():
     with open(VOCAB_soft_fn, "wb") as f:
         pickle.dump(VOCAB_soft, f, -1)    
 
-    return VOCAB, VOCAB_soft
+    word_counts = Counter(word_tokens)
+
+    return VOCAB, VOCAB_soft, word_counts
 
 if __name__ == "__main__":
     
-    VOCAB, VOCAB_soft = get_vocab()
+    VOCAB, VOCAB_soft, word_counts = get_vocab()
     data = dict()
+    data["word_counts"] = word_counts
     data["VOCAB"] = VOCAB
     data["VOCAB_soft"] = VOCAB_soft
     data["train"] = get_data("train")

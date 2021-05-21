@@ -18,6 +18,7 @@ wav_folder = path.join(flickr8k_folder, 'wav')
 pickle_file = 'data/flickr8k.pickle'
 
 soft_tags_fn = path.join(flickr8k_folder, "flickr8k.tags.all.txt") # path to Herman's soft tags
+keywords_8_fn = path.join(flickr8k_folder, "keywords.8.txt")
 
 # Raw data path
 BASE_DIR = "/home/collarkay/KAYODE/data"

@@ -146,6 +146,7 @@ if __name__ == "__main__":
 
     # Print status
     print
+    print("DETECTION SCORES: ")
     print("-"*79)
     print("Sigmoid threshold: {:.2f}".format(args.test_threshold))
     print("No. predictions:", d_n_tp_fp)

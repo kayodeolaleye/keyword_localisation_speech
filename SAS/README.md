@@ -156,7 +156,42 @@ To visualise the training process
     $ python test_cnnpool.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
 
 
-## Results
+## Results on test set
+
+    DETECTION SCORES: 
+
+    Sigmoid threshold: 0.30
+    Precision: 8706 / 38256 = 22.8%
+    Recall: 8706 / 29808 = 29.2%
+    F-score: 25.6%
+
+    Sigmoid threshold: 0.40
+    Precision: 6776 / 21705 = 31.2%
+    Recall: 6776 / 29808 = 22.7%
+    F-score: 26.3%
+
+    Sigmoid threshold: 0.60
+    Precision: 3964 / 8561 = 46.3%
+    Recall: 3964 / 29808 = 13.3%
+    F-score: 20.7%
+
+    LOCALISATION SCORES: 
+
+    Sigmoid threshold: 0.30
+    Precision: 974 / 8937 = 10.9%
+    Recall: 974 / 17313 = 5.6%
+    F-score: 7.4%
+
+    Sigmoid threshold: 0.40
+    Precision: 837 / 6966 = 12.0%
+    Recall: 837 / 19147 = 4.4%
+    F-score: 6.4%
+
+    Sigmoid threshold: 0.60
+    Precision: 587 / 4097 = 14.3%
+    Recall: 587 / 21766 = 2.7%
+    F-score: 4.5%
+
 
 
     
