@@ -10,7 +10,7 @@ from torch.utils.data.dataloader import default_collate
 from config import pickle_file, num_workers, tran_folder
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, args, subset, target_type):
+    def __init__(self, subset, target_type):
         self.target_type = target_type
         with open(pickle_file, 'rb') as file:
             data = pickle.load(file)
@@ -108,7 +108,7 @@ def spec_augment(spec: np.ndarray,
 
 if __name__ == "__main__":
     args = parse_args()
-    train_dataset = Flickr8kDataset(args, 'train')
+    train_dataset = Flickr8kDataset('train', args.target_type)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=num_workers,
                                                pin_memory=True, collate_fn=pad_collate)
 

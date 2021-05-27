@@ -9,7 +9,7 @@ import argparse
 
 import sklearn.metrics as metrics
 
-from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count, get_localisation_metric_count, eval_localisation_prf
+from utils import extract_feature, get_logger
 from os import path
 # from models.psc import PSC
 
@@ -42,22 +42,24 @@ def pad(feature):
 def eval_kws(sigmoid_mat, vocab, keyword_counts, utterances, samples, analyze=False):
     # Copied from https://github.com/kamperh/recipe_semantic_flickraudio/blob/master/speech_nn/eval_keyword_spotting.py
     # Keyword spotting evaluation
-    p_at_10 = []
-    p_at_n = []
-    eer = []
-    if analyze:
-        print
+    
     keywords = sorted(keyword_counts)
     keyword_ids = [vocab[w] for w in keywords]
+    print("keyword ids: ", keyword_ids)
 
     # Get sigmoid matrix for keywords
     keyword_sigmoid_mat = np.zeros((len(utterances), len(keywords)))
     for i_utt, utt in enumerate(utterances):
         keyword_sigmoid_mat[i_utt, :] = sigmoid_mat[i_utt][keyword_ids]
 
+    p_at_10 = []
+    p_at_n = []
+    eer = []
+    if analyze:
+        print
     for i_keyword, keyword in enumerate(keywords):       
         # Rank
-        rank_order = sigmoid_mat[:, i_keyword].argsort()[::-1]
+        rank_order = keyword_sigmoid_mat[:, i_keyword].argsort()[::-1]
         utt_order = [utterances[i] for i in rank_order]
         ordered_utt_to_id = get_index(samples, utt_order)
         
@@ -66,12 +68,14 @@ def eval_kws(sigmoid_mat, vocab, keyword_counts, utterances, samples, analyze=Fa
         for utt in utt_order:
             index = ordered_utt_to_id[utt]
             sample = samples[index]
-            # print(sample["trn"])
+            # print((utt, sample["wave"]))
             if keyword in sample["trn"]:
                 y_true.append(1)
             else:
                 y_true.append(0)
-        y_score = sigmoid_mat[:, i_keyword][rank_order]
+        y_score = keyword_sigmoid_mat[:, i_keyword][rank_order]
+     
+        # print(len(y_score))
         cur_eer = calculate_eer(y_true, y_score)
         eer.append(cur_eer)
 
@@ -132,9 +136,9 @@ if __name__ == "__main__":
         print("Invalid target type")
     
     # Read keywords
-    print("Reading:", keywords_8_fn)
+    # print("Reading:", keywords_8_fn)
+    keywords = []
     with open(keywords_8_fn, "r") as f:
-        keywords = []
         for line in f:
             keywords.append(line.strip())
     # print("Keywords:", keywords)
@@ -171,7 +175,7 @@ if __name__ == "__main__":
            
             sigmoid_out = torch.sigmoid(out)
 
-        sigmoid_mat[i, :] = sigmoid_out.cpu()
+        sigmoid_mat[i, :] = sigmoid_out.cpu()[0]
 
         utterances.append(wave)
 

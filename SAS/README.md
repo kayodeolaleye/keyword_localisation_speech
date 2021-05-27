@@ -99,7 +99,7 @@ To visualise the training process
 
 ### Train PSC model using soft (visual) targets
 
-    $ python train_psc.py --target_type soft --val_threshold 0.4 --out_dim 1000 --temp_ratio 1.2 --epochs 100 --lr 0.0005
+    $ python train_psc.py --target_type soft --val_threshold 0.4 --out_dim 1000 --temp_ratio 1.2 --epochs 100 --lr 0.0001
 
 To visualise the training process
 
