@@ -156,7 +156,7 @@ To visualise the training process
     $ python test_cnnpool.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
 
 
-## Results on test set
+### Results on test set
 
     DETECTION SCORES: 
 
@@ -193,8 +193,34 @@ To visualise the training process
     F-score: 4.5%
 
 
+### Exact Keyword Spotting
 
-    
+    BoW PSC
 
+    python kws_psc.py --model_path 1621334318_psc_bow --target_type bow --analyze
+
+    Average P@10: 80.2%
+    Average P@N: 68.1%
+    Average EER: 10.1%
+
+    Soft PSC
+
+    python3 kws_psc.py --model_path 1621293877_psc_soft --target_type soft --analyze
+
+    Average P@10: 19.7%
+    Average P@N: 14.0%
+    Average EER: 35.6%
+
+    python3 kws_cnnpool.py --model_path 1622451369_cnnpool_bow --target_type bow --analyze
+
+    Average P@10: 95.5%
+    Average P@N: 75.0%
+    Average EER: 6.2%
+
+    python3 kws_cnnpool.py --model_path 1621368712_cnnpool_soft --target_type soft --analyze
+
+    Average P@10: 44.5%
+    Average P@N: 28.2%
+    Average EER: 22.8%
 
 

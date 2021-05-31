@@ -53,9 +53,9 @@ def train_net(args):
     logger = get_logger()
 
     # Custom dataloaders
-    train_dataset = Flickr8kDataset(args, 'train', args.target_type)
+    train_dataset = Flickr8kDataset('train', args.target_type)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=True, num_workers=num_workers)
-    valid_dataset = Flickr8kDataset(args, 'dev', args.target_type)
+    valid_dataset = Flickr8kDataset('dev', args.target_type)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False, num_workers=num_workers)
 
     # Epochs

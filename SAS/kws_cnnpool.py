@@ -39,18 +39,20 @@ def pad(feature):
 
     return padded_input, input_length
 
-def eval_kws(sigmoid_mat, vocab, keyword_counts, utterances, samples, analyze=False):
+def eval_kws(sigmoid_dict, vocab, keyword_counts, utterances, label_dict, analyze=False):
     # Copied from https://github.com/kamperh/recipe_semantic_flickraudio/blob/master/speech_nn/eval_keyword_spotting.py
     # Keyword spotting evaluation
     
     keywords = sorted(keyword_counts)
+    utterances = sorted(sigmoid_dict)
     keyword_ids = [vocab[w] for w in keywords]
+
     print("keyword ids: ", keyword_ids)
 
     # Get sigmoid matrix for keywords
     keyword_sigmoid_mat = np.zeros((len(utterances), len(keywords)))
     for i_utt, utt in enumerate(utterances):
-        keyword_sigmoid_mat[i_utt, :] = sigmoid_mat[i_utt][keyword_ids]
+        keyword_sigmoid_mat[i_utt, :] = sigmoid_dict[utt][keyword_ids]
 
     p_at_10 = []
     p_at_n = []
@@ -61,15 +63,12 @@ def eval_kws(sigmoid_mat, vocab, keyword_counts, utterances, samples, analyze=Fa
         # Rank
         rank_order = keyword_sigmoid_mat[:, i_keyword].argsort()[::-1]
         utt_order = [utterances[i] for i in rank_order]
-        ordered_utt_to_id = get_index(samples, utt_order)
+        # ordered_utt_to_id = get_index(samples, utt_order)
         
         # EER
         y_true = []
         for utt in utt_order:
-            index = ordered_utt_to_id[utt]
-            sample = samples[index]
-            # print((utt, sample["wave"]))
-            if keyword in sample["trn"]:
+            if keyword in label_dict[utt]:
                 y_true.append(1)
             else:
                 y_true.append(0)
@@ -148,7 +147,7 @@ if __name__ == "__main__":
     keyword_counts = dict([(i, token_counts[i]) for i in token_counts if i in keywords])
 
     # print(keyword_counts)
-    samples = data["dev"] # change to "test" later on
+    samples = data["test"] # change to "test" later on
 
     checkpoint =path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")
     checkpoint = torch.load(checkpoint, map_location="cpu")
@@ -158,7 +157,8 @@ if __name__ == "__main__":
     iVOCAB = dict([(i[1], i[0]) for i in VOCAB.items()])
 
     # Get sigmoid matrix for keywords
-    sigmoid_mat = np.zeros((num_samples, len(VOCAB)))
+    sigmoid_dict = {}
+    label_dict = {}
     utterances = []
     for i in tqdm(range(num_samples)):
         sample = samples[i]
@@ -169,19 +169,19 @@ if __name__ == "__main__":
         padded_input, input_length = pad(feature)
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
         input_length = torch.tensor([input_length]).to(device)
-        # print("Input length: ", input_length.shape)
         with torch.no_grad():
-            out, frame_score = model(padded_input, input_length)
+            out = model(padded_input)
            
             sigmoid_out = torch.sigmoid(out)
-
-        sigmoid_mat[i, :] = sigmoid_out.cpu()[0]
+        for j in range(sigmoid_out.shape[0]):
+            sigmoid_dict[wave] = sigmoid_out.cpu()[j, :]
+            label_dict[wave] = gt_trn
 
         utterances.append(wave)
 
     print("Evaluating model's performance on keyword spotting in one utterance")
     p_at_10, p_at_n, eer = eval_kws(
-        sigmoid_mat, VOCAB, keyword_counts, utterances, samples, args.analyze
+        sigmoid_dict, VOCAB, keyword_counts, utterances, label_dict, args.analyze
         )
 
     print
