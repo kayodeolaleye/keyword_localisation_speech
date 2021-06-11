@@ -47,14 +47,8 @@ if __name__ == "__main__":
         print("Invalid target type")
 
     
-    samples = data["dev"] # change to "test" later on
-
-    # filename = path.join(trained_model_dir, args.model_path,, "psc_" + args.target_type + "_model.pth")
-    # model = PSC(args.out_dim, args.temp_ratio)
-    # model.load_state_dict(torch.load(filename))
-    # model = model.to(device)
-    # model.eval()
-
+    samples = data["test"] # change to "test" later on
+    # print(VOCAB)
     checkpoint =path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")
     checkpoint = torch.load(checkpoint, map_location="cpu")
     model = checkpoint["model"].to(device)
@@ -73,13 +67,14 @@ if __name__ == "__main__":
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
-        gt_trn = sample["trn"]
+        gt_trn = [i for i in sample["trn"] if i in VOCAB]
+        # print("gt_trn: ", gt_trn)
         target_dur = sample["dur"]
         feature = extract_feature(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
         padded_input, input_length = pad(feature)
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
         input_length = torch.tensor([input_length]).to(device)
-        # print("Input length: ", input_length.shape)
+
         with torch.no_grad():
             out, attention_weights = model(padded_input)
             
@@ -101,7 +96,7 @@ if __name__ == "__main__":
         tokens = list(VOCAB.keys())
         valid_hyp_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in tokens if tok.casefold() in hyp_trn] # List of words detected by model with a prob > a threshold
         valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn if tok.casefold() in tokens] # remove tokens that are not in the speech vocabulary
-
+        # print("valid gt_trn: ", valid_gt_trn)
         hyp_duration = []
         for tok in valid_hyp_trn:
             token_attn_weight = attention_weights.cpu().numpy()[tok[1], :]

@@ -1,6 +1,6 @@
-from inspect import ArgInfo
 import pickle
 import torch
+import random
 from os import path
 from utils import extract_feature, parse_args
 from torch.utils.data import Dataset
@@ -9,7 +9,7 @@ from torch.utils.data.dataloader import default_collate
 from config import pickle_file, input_dim, num_workers, tran_folder, soft_tags_fn
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, args, subset):
+    def __init__(self, subset):
         with open(pickle_file, 'rb') as file:
             data = pickle.load(file)
         # self.vocab = data['VOCAB']
@@ -25,11 +25,10 @@ class Flickr8kDataset(Dataset):
         dur = sample["dur"]
         feature = extract_feature(input_file=wave, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True)
     
-        # feature = build_LFR_features(feature, m=self.args.LFR_m, n = self.args.LFR_n)
         # Zero mean and unit variance
         feature = (feature - feature.mean()) / feature.std()
         
-        # feature = spec_augment(feature)
+        feature = spec_augment(feature)
         
         return feature, trn, soft, dur
 
@@ -70,9 +69,33 @@ def pad_collate(batch):
 
     return default_collate(batch)
 
+def spec_augment(spec: np.ndarray,
+                 num_mask=2,
+                 freq_masking=0.15,
+                 time_masking=0.20,
+                 value=0):
+    spec = spec.copy()
+    num_mask = random.randint(1, num_mask)
+    for i in range(num_mask):
+        all_freqs_num, all_frames_num = spec.shape
+        freq_percentage = random.uniform(0.0, freq_masking)
+
+        num_freqs_to_mask = int(freq_percentage * all_freqs_num)
+        f0 = np.random.uniform(low=0.0, high=all_freqs_num - num_freqs_to_mask)
+        f0 = int(f0)
+        spec[f0:f0 + num_freqs_to_mask, :] = value
+
+        time_percentage = random.uniform(0.0, time_masking)
+
+        num_frames_to_mask = int(time_percentage * all_frames_num)
+        t0 = np.random.uniform(low=0.0, high=all_frames_num - num_frames_to_mask)
+        t0 = int(t0)
+        spec[:, t0:t0 + num_frames_to_mask] = value
+    return spec
+
 if __name__ == "__main__":
     args = parse_args()
-    train_dataset = Flickr8kDataset(args, 'train')
+    train_dataset = Flickr8kDataset('train')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=num_workers,
                                                pin_memory=True, collate_fn=pad_collate)
 

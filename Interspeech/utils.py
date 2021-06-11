@@ -116,6 +116,15 @@ def get_tran_dict(tran_fn):
 
     return tran_content_dict
 
+def get_keywords(filename):
+    word_to_id_dict = {}
+    with open(filename) as f:
+        count = 0
+        for line in f:
+            word_to_id_dict[line.strip()] = count
+            count += 1
+    return word_to_id_dict
+
 def get_soft_tags(viz_tag_fn, output_dir=None):
 
     # This function takes an externally generated soft probabilities as a label to train the VisionSpeechCNN and VisionSpeechPSC models.
@@ -196,7 +205,7 @@ def extract_feature(
 # Tensorboard functions
 def write_scalar_to_tb(
             writer,
-            lr,
+            # lr,
             epoch,
             train_loss,
             valid_loss,
@@ -204,7 +213,7 @@ def write_scalar_to_tb(
             valid_recall,
             valid_fscore):
             writer.add_scalar('model/train_loss', train_loss, epoch)
-            writer.add_scalar('model/Learning_rate', lr, epoch)
+            # writer.add_scalar('model/Learning_rate', lr, epoch)
             writer.add_scalar('model/valid_loss', valid_loss, epoch)
             writer.add_scalar('model/valid_precision', valid_precision, epoch)
             writer.add_scalar('model/valid_recall', valid_recall, epoch)

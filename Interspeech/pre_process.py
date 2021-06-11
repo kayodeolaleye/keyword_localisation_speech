@@ -1,10 +1,11 @@
 
+import numpy as np
 from tqdm import tqdm
 import pickle
 from os import path
 from os import listdir
-from utils import get_tran_dict, get_soft_tags, ctm_to_dict
-from config import tran_folder, wav_folder, pickle_file, soft_tags_fn, flickr8k_ctm_fn
+from utils import get_tran_dict, get_soft_tags, ctm_to_dict, get_keywords
+from config import tran_folder, wav_folder, pickle_file, soft_tags_fn, flickr8k_ctm_fn, keywords_fn
 from collections import Counter
 
 
@@ -18,8 +19,8 @@ def get_data(split):
         word_tokens.extend(tran_dict[utt])
     
     # Get soft labels dictionary from an external visual tagger for 1000 keywords
-    soft_tags_dict, _ = get_soft_tags(soft_tags_fn)
-
+    soft_tags_dict, vocab_soft_all = get_soft_tags(soft_tags_fn)
+    VOCAB = get_keywords(keywords_fn)
     # Forced alignments (ctm) 
     ctm_dict = ctm_to_dict(flickr8k_ctm_fn)
 
@@ -35,7 +36,7 @@ def get_data(split):
             key = f.split('.')[0]
             if key in tran_dict:
                 trn = tran_dict[key]
-                soft = soft_tags_dict[key[:-2]]
+                soft = np.array([soft_tags_dict[key[:-2]][vocab_soft_all[word]] for word in VOCAB])
 
                 ctm_entry = ctm_dict[key[:-2] + ".jpg_#" + key[-1]]
                 utt_start = ctm_entry[0][0]
@@ -56,9 +57,10 @@ def get_vocab():
     word_tokens = []
     for utt in tran_dict:
         word_tokens.extend(tran_dict[utt])
-    VOCAB = dict([
-        (j[0], i) for i, j in enumerate(Counter(word_tokens).most_common(1000))
-        ])
+    # VOCAB = dict([
+        # (j[0], i) for i, j in enumerate(Counter(word_tokens).most_common(1000))
+        # ])
+    VOCAB = get_keywords(keywords_fn)
 
     VOCAB_fn = path.join(tran_folder, "VOCAB.pkl")
     
@@ -66,18 +68,21 @@ def get_vocab():
         pickle.dump(VOCAB, f, -1)
 
     # Get soft labels dictionary from an external visual tagger for 1000 keywords
-    _, VOCAB_soft = get_soft_tags(soft_tags_fn)
+    VOCAB_soft = VOCAB
 
     VOCAB_soft_fn = path.join(tran_folder, "VOCAB_soft.pkl")
     with open(VOCAB_soft_fn, "wb") as f:
         pickle.dump(VOCAB_soft, f, -1)    
 
-    return VOCAB, VOCAB_soft
+    word_counts = Counter(word_tokens)
+
+    return VOCAB, VOCAB_soft, word_counts
 
 if __name__ == "__main__":
     
-    VOCAB, VOCAB_soft = get_vocab()
+    VOCAB, VOCAB_soft, word_counts = get_vocab()
     data = dict()
+    data["word_counts"] = word_counts
     data["VOCAB"] = VOCAB
     data["VOCAB_soft"] = VOCAB_soft
     data["train"] = get_data("train")
