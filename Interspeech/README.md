@@ -87,7 +87,7 @@ To visualise the training process
 
 ### Train CNN_PoolAttend model Bag-of-words (bow) targets
 
-    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 1000 --embed_size 1024 --epochs 100 --lr 0.0001
+    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001
 
 ### Evaluate CNN_PoolAttend model
 
