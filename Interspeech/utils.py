@@ -315,7 +315,7 @@ def get_localisation_metric_count(hyp_loc, gt_loc):
 
 def eval_localisation_prf(n_tp, n_fp, n_fn):
     precision = n_tp / (n_tp + n_fp)
-    recall = n_tp / (n_tp +n_fn)
+    recall = n_tp / (n_tp + n_fn)
     fscore = 2 * precision * recall / (precision + recall)
 
     return precision, recall, fscore
