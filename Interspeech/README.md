@@ -49,41 +49,7 @@ To visualise the training process
 
 ### Evaluate CNNAttend model
 
-    python test.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
-
-### Results on test set (1000 keywords)
-
-    DETECTION SCORES: 
-    Sigmoid threshold: 0.30
-    Precision: 19326 / 26568 = 72.7416%
-    Recall: 19326 / 29617 = 65.2531%
-
-    Sigmoid threshold: 0.40
-    Precision: 18864 / 24790 = 76.0952%
-    Recall: 18864 / 29617 = 63.6931%
-    F-score: 69.3440%
-    F-score: 68.7942%
-
-    Sigmoid threshold: 0.60
-    Precision: 17945 / 22013 = 81.5200%
-    Recall: 17945 / 29617 = 60.5902%
-    F-score: 69.5138%
-
-    LOCALISATION SCORES: 
-    Sigmoid threshold: 0.30
-    Precision: 19326 / 26568 = 42.1101%
-    Recall: 19326 / 29617 = 39.4867%
-    F-score: 40.7562%
-
-    Sigmoid threshold: 0.40
-    Precision: 18864 / 24790 = 43.2125%
-    Recall: 18864 / 29617 = 38.9101%
-    F-score: 40.9486%
-
-    Sigmoid threshold: 0.60
-    Precision: 17945 / 22013 = 44.9097%
-    Recall: 17945 / 29617 = 37.7297%
-    F-score: 41.0078%
+    python test_cnnattend.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 ### Train CNN_PoolAttend model Bag-of-words (bow) targets
 
@@ -91,7 +57,7 @@ To visualise the training process
 
 ### Evaluate CNN_PoolAttend model
 
-    $ python test.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
+    $ python test_cnnpoolattend.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 
 ### Train CNNAttend model using soft (visual) targets
@@ -104,7 +70,7 @@ To visualise the training process
 
 ### Evaluate CNNAttend model
 
-    $ python test.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    $ python test_cnnattend.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
 
 ### Train CNN_PoolAttend model soft (visual) targets
 
@@ -112,9 +78,9 @@ To visualise the training process
 
 ### Evaluate CNN_PoolAttend model
 
-    $ python test.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    $ python test_cnnpoolattend.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
 
-## Results
+
 
 
     
