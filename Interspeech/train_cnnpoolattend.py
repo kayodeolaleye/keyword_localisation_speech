@@ -53,9 +53,9 @@ def train_net(args):
     logger = get_logger()
 
     # Custom dataloaders
-    train_dataset = Flickr8kDataset('train')
+    train_dataset = Flickr8kDataset('train', args.data_size)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=True, num_workers=num_workers)
-    valid_dataset = Flickr8kDataset('dev')
+    valid_dataset = Flickr8kDataset('dev', 100) #use all the available dev set
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False, num_workers=num_workers)
 
     # Epochs
@@ -114,6 +114,7 @@ def train_net(args):
 
     
     torch.save(model.state_dict(), path.join(model_path, "model.pth"))
+    print("Model ID: ", model_id)
 
 def train(train_loader, model, optimizer, epoch, logger, target_type):
     model.train()

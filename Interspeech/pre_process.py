@@ -8,7 +8,6 @@ from utils import get_tran_dict, get_soft_tags, ctm_to_dict, get_keywords
 from config import tran_folder, wav_folder, pickle_file, soft_tags_fn, flickr8k_ctm_fn, keywords_fn
 from collections import Counter
 
-
 def get_data(split):
 
     print("Getting {} data...".format(split))

@@ -59,6 +59,7 @@ def parse_args():
     parser.add_argument('--val_threshold', type=float, help='threshold to use during validation')
     parser.add_argument('--embed_size', default=1024, type=int, help='embedding dimension / dimension of the convolutional feature')
     parser.add_argument('--vocab_size', default=67, type=int, help='Size of speech corpus vocabulary')
+    parser.add_argument('--data_size', default=100, type=int, help='Quantity of speech corpus to use during training')
 
     args = parser.parse_args()
     return args
@@ -300,6 +301,9 @@ def get_localisation_metric_count(hyp_loc, gt_loc):
     n_tp = 0
     n_fp = 0
     n_fn = 0
+    for hyp_frame, hyp_token in hyp_loc:
+        if hyp_token not in [gt_token for _, gt_token in gt_loc]:
+            n_fp += 1
 
     for gt_start_end_frame, gt_token in gt_loc:
         if gt_token not in [hyp_token for _, hyp_token in hyp_loc]:

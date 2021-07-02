@@ -41,7 +41,7 @@ Pre-process data
 
 ### Train CNNAttend model using Bag-of-words (bow) targets
 
-    $ python train_cnnattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001
+    $ python train_cnnattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001 --data_size 20
 
 To visualise the training process
 
@@ -53,7 +53,7 @@ To visualise the training process
 
 ### Train CNN_PoolAttend model Bag-of-words (bow) targets
 
-    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001
+    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001 --data_size 20
 
 ### Evaluate CNN_PoolAttend model
 
@@ -62,7 +62,7 @@ To visualise the training process
 
 ### Train CNNAttend model using soft (visual) targets
 
-    $ python train_cnnattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001
+    $ python train_cnnattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001 --data_size 20
 
 To visualise the training process
 
@@ -74,7 +74,7 @@ To visualise the training process
 
 ### Train CNN_PoolAttend model soft (visual) targets
 
-    $ python train_cnnpoolattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001
+    $ python train_cnnpoolattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001 --data_size 20
 
 ### Evaluate CNN_PoolAttend model
 
@@ -84,6 +84,18 @@ To visualise the training process
 
 
     
+
+### Dense Localisation
+
+    python dense_localise.py --model_path 1623513734_cnnattend_bow --target_type bow --test_threshold 0.4 --min_frame 20 --max_frame 60 --step 3
+
+#### Results
+
+    Precision: 69.6%
+    Recall: 79.2%
+    F-score: 74.1%
+
+    python dense_localise.py --model_path 1623340455_cnnattend_soft --target_type soft --test_threshold 0.4 --min_frame 20 --max_frame 60 --step 3
 
 
 
