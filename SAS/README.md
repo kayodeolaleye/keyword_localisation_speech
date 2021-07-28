@@ -60,21 +60,6 @@ To visualise the training process
 
     $ tensorboard --logdir=runs
 
-### TEMPORARY
-DETECTION SCORES: 
-Sigmoid threshold: 0.40
-No. predictions: 19191
-No. true tokens: 29617
-Precision: 15665 / 19191 = 81.6268%
-Recall: 15665 / 29617 = 52.8919%
-F-score: 64.1903%
-
-LOCALISATION SCORES: 
-Sigmoid threshold: 0.40
-Precision: 12167 / 18995 = 64.0537%
-Recall: 12167 / 23412 = 51.9691%
-F-score: 57.3820%
-
 ### Evaluate PSC model
 
     python test_psc.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
