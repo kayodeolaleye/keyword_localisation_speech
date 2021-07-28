@@ -7,13 +7,25 @@
     year={2020}
     }
 
-### DataSet
+### Raw data folder structure
+Note: download Flicker8k audio and Flicker8k images to a directory outside the cloned repository
 
+    data/
+        Flicker8k_Dataset/ - folder containing the Flicker8k images
+        flickr_audio/ 
+            wavs/ - folder containing the flicker8k audio wave files
+            flick_8k.ctm - file containing flicker8k forced alignment (can be downloaded [here](https://github.com/kamperh/recipe_semantic_flickraudio/blob/master/data/flickr_8k.ctm)) 
+            wav2spk.txt - file containing a list of audio file name and speakers of each audio file
+        flick8k.tags.all.txt - file containing Herman's soft tags generated with VGG16
+        Flickr8k_text/ 
+            Flickr_8k.devImages.txt - List of images used as development set
+            Flickr_8k.trainImages.txt - List of images used as training set
+            Flickr_8k.testImages.txt - List of images used as test set
 
 ### Dependencies
 
     Python 3+
-    PyTorch 1.0.0
+    PyTorch 1.5.0
 
 ### Usage
 #### Data wrangling
@@ -47,6 +59,21 @@ Pre-process data
 To visualise the training process
 
     $ tensorboard --logdir=runs
+
+### TEMPORARY
+DETECTION SCORES: 
+Sigmoid threshold: 0.40
+No. predictions: 19191
+No. true tokens: 29617
+Precision: 15665 / 19191 = 81.6268%
+Recall: 15665 / 29617 = 52.8919%
+F-score: 64.1903%
+
+LOCALISATION SCORES: 
+Sigmoid threshold: 0.40
+Precision: 12167 / 18995 = 64.0537%
+Recall: 12167 / 23412 = 51.9691%
+F-score: 57.3820%
 
 ### Evaluate PSC model
 
@@ -87,6 +114,9 @@ To visualise the training process
     F-score: 60.6%
 
 
+### Results on 67 keywords
+
+    python test_psc_67.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
 
 ### Train CNN_Pool model Bag-of-words (bow) targets
 

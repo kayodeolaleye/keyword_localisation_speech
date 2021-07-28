@@ -94,6 +94,15 @@ def ctm_to_dict(ctm_fn):
             ctm_dict[utt].append((start, dur, word))
     return ctm_dict
 
+def get_keywords(filename):
+    word_to_id_dict = {}
+    with open(filename) as f:
+        count = 0
+        for line in f:
+            word_to_id_dict[line.strip()] = count
+            count += 1
+    return word_to_id_dict
+    
 def get_tran_dict(tran_fn):
 
     print("Reading:", tran_fn)
@@ -313,6 +322,10 @@ def get_localisation_metric_count(hyp_loc, gt_loc):
     n_tp = 0
     n_fp = 0
     n_fn = 0
+
+    for hyp_frame, hyp_token in hyp_loc:
+        if hyp_token not in [gt_token for _, gt_token in gt_loc]:
+            n_fp += 1
 
     for gt_start_end_frame, gt_token in gt_loc:
         if gt_token not in [hyp_token for _, hyp_token in hyp_loc]:
