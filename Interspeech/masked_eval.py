@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import argparse
-from utils import ensure_folder, extract_feature, get_gt_token_duration, get_logger, get_localisation_metric_count, eval_localisation_prf, split_frame_length, plot_stuff
+from utils_masked import ensure_folder, extract_feature, get_gt_token_duration, get_logger, get_localisation_metric_count, eval_localisation_prf, split_frame_length, plot_stuff
 from os import path
 from config import pickle_file, device, trained_model_dir
 import pickle
@@ -84,27 +84,30 @@ if __name__ == "__main__":
      
         for i, (start, end) in enumerate(segments_dur):
             segment_key = str(start) + "_" + str(end)
-            segment = padded_input[:, start:end]
-            segment = np.transpose(segment, (1, 0))
-            padded_segment, seg_len = pad(segment)
-            padded_segment = torch.from_numpy(padded_segment).unsqueeze(0).to(device)
+            # segment = padded_input[:, start:end]
+            masked_padded_input = padded_input
+            masked_padded_input[:, start:end] = 0
+            
+            # segment = np.transpose(segment, (1, 0))
+            # padded_segment, seg_len = pad(segment)
+            masked_padded_input = torch.from_numpy(masked_padded_input).unsqueeze(0).to(device)
             # Feed padded segment to trained mode
             with torch.no_grad():
-                out, __ = model(padded_segment)
+                out, __ = model(masked_padded_input)
                 sigmoid_out = torch.sigmoid(out)
                 sigmoid_out = sigmoid_out.squeeze(0).cpu().numpy()
          
             all_utt_seg_score[i, :] = sigmoid_out
             all_utt_segment_dur.append((start, end))
 
-        proposed_max_durations = np.argmax(all_utt_seg_score, 0)  # size = 67
-        valid_proposed_max_durations = []
-        for word_id, segment_ind in enumerate(proposed_max_durations):
+        proposed_min_durations = np.argmin(all_utt_seg_score, 0)  # size = 67
+        valid_proposed_min_durations = []
+        for word_id, segment_ind in enumerate(proposed_min_durations):
             sig_out = all_utt_seg_score[segment_ind]
             if full_sigmoid_out[word_id] >= args.test_threshold:
-                valid_proposed_max_durations.append((word_id, segment_ind))
+                valid_proposed_min_durations.append((word_id, segment_ind))
         
-        hyp_duration = [(np.sum(all_utt_segment_dur[i_segment])/2, iVOCAB[i_word]) for i_word, i_segment in valid_proposed_max_durations]
+        hyp_duration = [(all_utt_segment_dur[i_segment], iVOCAB[i_word]) for i_word, i_segment in valid_proposed_min_durations]
         # print(hyp_duration)
         valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn] 
         token_gt_duration = get_gt_token_duration(target_dur, valid_gt_trn) # ground truth start and end time for each word in utterance
@@ -116,7 +119,7 @@ if __name__ == "__main__":
         l_n_fp += l_analysis[1]
         l_n_fn += l_analysis[2]
 
-        # plot_stuff(valid_proposed_max_durations, all_utt_segment_dur, all_utt_seg_score, target_dur_full, wave, iVOCAB)
+        # plot_stuff(valid_proposed_min_durations, all_utt_segment_dur, all_utt_seg_score, target_dur_full, wave, iVOCAB)
     
     # # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)

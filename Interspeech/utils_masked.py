@@ -310,9 +310,9 @@ def get_localisation_metric_count(hyp_loc, gt_loc):
             n_fn += 1
             continue
         for hyp_frame, hyp_token in hyp_loc:
-            if hyp_token == gt_token and (gt_start_end_frame[0] <= hyp_frame < gt_start_end_frame[1] or gt_start_end_frame[0] < hyp_frame <= gt_start_end_frame[1]):
+            if hyp_token == gt_token and (gt_start_end_frame[0] <= hyp_frame[0] < gt_start_end_frame[1] or gt_start_end_frame[0] <= hyp_frame[1] <= gt_start_end_frame[1]):
                 n_tp += 1
-            elif hyp_token == gt_token and (hyp_frame < gt_start_end_frame[0] or gt_start_end_frame[1] < hyp_frame):
+            elif hyp_token == gt_token and (hyp_frame[0] < gt_start_end_frame[0] and gt_start_end_frame[1] < hyp_frame[1]):
                 n_fp += 1
 
     return n_tp, n_fp, n_fn
@@ -333,7 +333,6 @@ def compute_cam(grad_cam, x, iVOCAB):
         #cam = np.broadcast_to(cam, (39, cam.shape[0]))
         cams_dict[token] = cam
     return cams_dict
-
 
 def split_frame_length(frame_length, min_frame, max_frame, step):
 
