@@ -17,17 +17,18 @@ tran_folder = path.join(flickr8k_folder, "transcript")
 wav_folder = path.join(flickr8k_folder, 'wav')
 pickle_file = 'data/flickr8k.pickle'
 
-soft_tags_fn = path.join(flickr8k_folder, "flickr8k.tags.all.txt") # path to Herman's soft tags
+soft_tags_fn = "/home/doneata/work/jsalt-rosetta-flickr/flickr8k.tags.all.txt"
 
 # Raw data path
-BASE_DIR = "/home/collarkay/KAYODE/data"
-flickr8k_trans_dir = path.join(BASE_DIR, "Flickr8k_text")
-flickr8k_audio_dir = path.join(BASE_DIR, "flickr_audio")
+BASE_DIR = "/home/doneata/data"
+HERMAN_DIR = "/home/doneata/work/herman-semantic-flickr"
+
+flickr8k_trans_dir = path.join(BASE_DIR, "flickr8k-text")
+flickr8k_audio_dir = path.join(BASE_DIR, "flickr8k-audio")
 flickr8k_wav_dir = path.join(flickr8k_audio_dir, "wavs")
 wav_to_spk_fn = path.join(flickr8k_audio_dir, "wav2spk.txt")
-flickr8k_ctm_fn = path.join(flickr8k_audio_dir, "flickr_8k.ctm")
-keywords_fn = path.join(flickr8k_folder, "keywords.8.txt")
-
+flickr8k_ctm_fn = path.join(HERMAN_DIR, "data/flickr_8k.ctm")
+keywords_fn = path.join(HERMAN_DIR, "data/keywords.8.txt")
 
 # Model path
 trained_model_dir = "trained_models"
