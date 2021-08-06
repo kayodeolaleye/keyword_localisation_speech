@@ -4,13 +4,14 @@ import pickle
 import pdb
 import sys
 
+from functools import partial
+
 import numpy as np
 import pandas as pd
 
 from PIL import Image
 from sklearn.metrics import (
     auc,
-    average_precision_score,
     roc_curve,
     precision_recall_curve,
 )
@@ -47,15 +48,20 @@ def load_visual_scores_cnn(data):
     return np.vstack([sample["soft"] for sample in data["test"]])
 
 
-def load_visual_scores_clip(data):
-    path = "output/clip/scores-flickr8-test-keywords57.npy"
+def load_visual_scores_clip(data, model_type_key, text_template_key):
+    path = f"output/clip/scores-{model_type_key}-{text_template_key}-flickr8-test-keywords57.npy"
     if os.path.exists(path):
         return np.load(path)
     else:
         image_paths = [wav_to_img_path(sample["wave"]) for sample in data["test"]]
         inv_vocab = {i: w for w, i in data["VOCAB"].items()}
         words = [inv_vocab[i] for i in range(len(inv_vocab))]
-        scores = compute_visual_scores_clip(image_paths, words)
+        scores = compute_visual_scores_clip(
+            image_paths,
+            words,
+            model_type=CLIP_MODELS[model_type_key],
+            text_template=TEXT_TEMPLATE[text_template_key],
+        )
         os.makedirs("output/clip", exist_ok=True)
         np.save(path, scores)
         return scores
@@ -73,15 +79,21 @@ def wav_to_img_path(path):
     )
 
 
-def compute_visual_scores_clip(image_paths, words, to_visualize=False):
+def compute_visual_scores_clip(
+    image_paths,
+    words,
+    model_type="RN-50",
+    text_template="a photo of a {word}",
+    to_visualize=False,
+):
     if to_visualize:
         import streamlit as st
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, preprocess = clip.load("RN50", device)
+    model, preprocess = clip.load(model_type, device)
 
     text_inputs = torch.cat(
-        [clip.tokenize(f"a photo of a {word}") for word in words]
+        [clip.tokenize(text_template.format(word=word)) for word in words]
     ).to(device)
 
     with torch.no_grad():
@@ -117,19 +129,32 @@ def compute_visual_scores_clip(image_paths, words, to_visualize=False):
 
 
 def eval_report(true, pred):
-    fpr, tpr, _ = roc_curve(true, pred)
     precision, recall, _ = precision_recall_curve(true, pred)
+    fpr, tpr, _ = roc_curve(true, pred)
     return {
-        "ap": 100 * average_precision_score(true, pred),
-        "auroc": 100 * auc(fpr, tpr),
         "aupr": 100 * auc(recall, precision),
+        "auroc": 100 * auc(fpr, tpr),
     }
 
 
+
+CLIP_MODELS = {name.replace("/", "-"): name for name in clip.available_models()}
+TEXT_TEMPLATE = {
+    "word": "{word}",
+    "photo-of": "a photo of a {word}",
+}
 VISUAL_MODELS = {
     "cnn": load_visual_scores_cnn,
-    "clip": load_visual_scores_clip,
 }
+
+for model_type_key in CLIP_MODELS:
+    for text_template_key in TEXT_TEMPLATE:
+        key = f"clip-{model_type_key}-{text_template_key}"
+        VISUAL_MODELS[key] = partial(
+            load_visual_scores_clip,
+            model_type_key=model_type_key,
+            text_template_key=text_template_key,
+        )
 
 
 @click.command()
@@ -140,7 +165,14 @@ VISUAL_MODELS = {
     required=True,
     type=click.Choice(list(VISUAL_MODELS.keys())),
 )
-def main(visual_model):
+@click.option(
+    "-o",
+    "--output-type",
+    "output_type",
+    default="simple",
+    type=click.Choice(["simple", "table"]),
+)
+def main(visual_model, output_type):
     with open(os.path.join(BASE_PATH, config.pickle_file), "rb") as f:
         data = pickle.load(f)
 
@@ -149,9 +181,23 @@ def main(visual_model):
 
     metrics = [eval_report(true[:, w], pred[:, w]) for w in range(true.shape[1])]
     metrics_df = pd.DataFrame(metrics)
+    metrics_df_mean = metrics_df.mean(0)
 
-    print(metrics_df)
-    print(metrics_df.mean(0))
+    if output_type == "simple":
+        print(metrics_df)
+        print(metrics_df_mean)
+    elif output_type == "table":
+        str_aupr_per_class = " ".join("{:.1f}".format(m) for m in metrics_df.aupr)
+        print(
+            "{} {:.2f} {:.2f} {}".format(
+                visual_model,
+                metrics_df_mean.auroc,
+                metrics_df_mean.aupr,
+                str_aupr_per_class,
+            )
+        )
+    else:
+        assert False
 
 
 if __name__ == "__main__":
