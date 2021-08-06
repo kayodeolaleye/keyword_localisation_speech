@@ -8,7 +8,12 @@ import numpy as np
 import pandas as pd
 
 from PIL import Image
-from sklearn.metrics import auc, roc_curve, precision_recall_curve
+from sklearn.metrics import (
+    auc,
+    average_precision_score,
+    roc_curve,
+    precision_recall_curve,
+)
 
 import clip
 import torch
@@ -115,6 +120,7 @@ def eval_report(true, pred):
     fpr, tpr, _ = roc_curve(true, pred)
     precision, recall, _ = precision_recall_curve(true, pred)
     return {
+        "ap": 100 * average_precision_score(true, pred),
         "auroc": 100 * auc(fpr, tpr),
         "aupr": 100 * auc(recall, precision),
     }
