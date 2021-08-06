@@ -51,6 +51,7 @@ def load_visual_scores_clip(data):
         inv_vocab = {i: w for w, i in data["VOCAB"].items()}
         words = [inv_vocab[i] for i in range(len(inv_vocab))]
         scores = compute_visual_scores_clip(image_paths, words)
+        os.makedirs("output/clip", exist_ok=True)
         np.save(path, scores)
         return scores
 
@@ -106,6 +107,7 @@ def compute_visual_scores_clip(image_paths, words, to_visualize=False):
         similarity = similarity.cpu().numpy().squeeze(0)
         scores.append(similarity)
 
+    scores = np.vstack(scores)
     return scores
 
 
