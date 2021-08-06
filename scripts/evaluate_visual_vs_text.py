@@ -48,6 +48,10 @@ def load_visual_scores_cnn(data):
     return np.vstack([sample["soft"] for sample in data["test"]])
 
 
+def load_speech_scores(data, key):
+    return np.load(os.path.join(BASE_PATH, "output", f"pred-{key}-flickr8k-test.npy"))
+
+
 def load_visual_scores_clip(data, model_type_key, text_template_key):
     path = f"output/clip/scores-{model_type_key}-{text_template_key}-flickr8-test-keywords57.npy"
     if os.path.exists(path):
@@ -143,14 +147,15 @@ TEXT_TEMPLATE = {
     "word": "{word}",
     "photo-of": "a photo of a {word}",
 }
-VISUAL_MODELS = {
+MODELS = {
     "cnn": load_visual_scores_cnn,
+    "cnnattend-soft": partial(load_speech_scores, key="1627992359_cnnattend_soft"),
 }
 
 for model_type_key in CLIP_MODELS:
     for text_template_key in TEXT_TEMPLATE:
         key = f"clip-{model_type_key}-{text_template_key}"
-        VISUAL_MODELS[key] = partial(
+        MODELS[key] = partial(
             load_visual_scores_clip,
             model_type_key=model_type_key,
             text_template_key=text_template_key,
@@ -159,11 +164,11 @@ for model_type_key in CLIP_MODELS:
 
 @click.command()
 @click.option(
-    "-vm",
-    "--visual-model",
-    "visual_model",
+    "-m",
+    "--model",
+    "model_name",
     required=True,
-    type=click.Choice(list(VISUAL_MODELS.keys())),
+    type=click.Choice(list(MODELS.keys())),
 )
 @click.option(
     "-o",
@@ -172,12 +177,12 @@ for model_type_key in CLIP_MODELS:
     default="simple",
     type=click.Choice(["simple", "table"]),
 )
-def main(visual_model, output_type):
+def main(model_name, output_type):
     with open(os.path.join(BASE_PATH, config.pickle_file), "rb") as f:
         data = pickle.load(f)
 
     true = load_true(data)
-    pred = VISUAL_MODELS[visual_model](data)
+    pred = MODELS[model_name](data)
 
     metrics = [eval_report(true[:, w], pred[:, w]) for w in range(true.shape[1])]
     metrics_df = pd.DataFrame(metrics)
@@ -190,7 +195,7 @@ def main(visual_model, output_type):
         str_aupr_per_class = " ".join("{:.1f}".format(m) for m in metrics_df.aupr)
         print(
             "{} {:.2f} {:.2f} {}".format(
-                visual_model,
+                model_name,
                 metrics_df_mean.auroc,
                 metrics_df_mean.aupr,
                 str_aupr_per_class,
