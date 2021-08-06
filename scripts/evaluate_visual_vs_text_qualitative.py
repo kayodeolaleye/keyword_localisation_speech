@@ -10,8 +10,8 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import auc, roc_curve, precision_recall_curve
 from toolz import partition
 
-from scripts.evaluate_visual_vs_text import (
-    VISUAL_MODELS,
+from scripts.evaluate import (
+    MODELS,
     BASE_PATH,
     config,
     load_true,
@@ -134,10 +134,10 @@ def main():
     col1, _ = st.beta_columns(2)
 
     col1.markdown("## Options")
-    visual_model = col1.selectbox("visual model", VISUAL_MODELS)
+    model_name = col1.selectbox("model: ", MODELS)
 
     true = load_true(data)
-    pred = VISUAL_MODELS[visual_model](data)
+    pred = MODELS[model_name](data)
 
     for word in words:
         st.markdown("# " + word)
