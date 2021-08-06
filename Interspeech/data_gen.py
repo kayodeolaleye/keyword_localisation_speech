@@ -50,6 +50,8 @@ def get_bow_vector(tran):
 def pad_collate(batch):
     max_input_len = 800
 
+    empty_dur = ((0, 0), 0, "")
+    max_len_dur = max(len(dur) for _, _, _, dur in batch)
     # for elem in batch:
     #     feature, trn, soft = elem
     #     max_input_len = max_input_len if max_input_len > feature.shape[0] else feature.shape[0]
@@ -62,9 +64,10 @@ def pad_collate(batch):
         padded_input = np.zeros((max_input_len, input_dim), dtype=np.float32)
         length = min(input_length, max_input_len)
         padded_input[:length, :] = feature[:length, :]
+        padded_dur = dur + [empty_dur] * (max_len_dur - len(dur))
         bow_vector = get_bow_vector(trn)
     
-        batch[i] = (np.transpose(padded_input, (1, 0)), bow_vector, soft, dur, input_length)
+        batch[i] = (np.transpose(padded_input, (1, 0)), bow_vector, soft, padded_dur, input_length)
 
     # sort it by input lengths (long to short)
     batch.sort(key=lambda x: x[4], reverse=True)
