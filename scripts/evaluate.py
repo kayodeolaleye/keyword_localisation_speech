@@ -5,6 +5,7 @@ import pdb
 import sys
 
 from functools import partial
+from typing import Callable, Dict
 
 import numpy as np
 import pandas as pd
@@ -20,9 +21,7 @@ import clip
 import torch
 import tqdm
 
-BASE_PATH = "Interspeech"
-sys.path.append(BASE_PATH)
-import config
+from scripts.data import BASE_PATH, config, wav_to_img_path
 
 
 def load_true(data):
@@ -71,18 +70,6 @@ def load_visual_scores_clip(data, model_type_key, text_template_key):
         return scores
 
 
-def wav_to_img_path(path):
-    _, filename = os.path.split(path)
-    filename, _ = os.path.splitext(filename)
-    fst, snd, _ = filename.split("_")
-    return os.path.join(
-        config.BASE_DIR,
-        "flickr8k-images",
-        "Flicker8k_Dataset",
-        fst + "_" + snd + ".jpg",
-    )
-
-
 def compute_visual_scores_clip(
     image_paths,
     words,
@@ -128,8 +115,7 @@ def compute_visual_scores_clip(
         similarity = similarity.cpu().numpy().squeeze(0)
         scores.append(similarity)
 
-    scores = np.vstack(scores)
-    return scores
+    return np.vstack(scores)
 
 
 def eval_report(true, pred):
@@ -141,7 +127,6 @@ def eval_report(true, pred):
     }
 
 
-
 CLIP_MODELS = {name.replace("/", "-"): name for name in clip.available_models()}
 TEXT_TEMPLATE = {
     "word": "{word}",
@@ -150,7 +135,7 @@ TEXT_TEMPLATE = {
 MODELS = {
     "cnn": load_visual_scores_cnn,
     "cnnattend-soft": partial(load_speech_scores, key="1627992359_cnnattend_soft"),
-}
+}  # type: Dict[str, Callable]
 
 for model_type_key in CLIP_MODELS:
     for text_template_key in TEXT_TEMPLATE:

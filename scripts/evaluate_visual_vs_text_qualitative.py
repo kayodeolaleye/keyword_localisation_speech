@@ -2,49 +2,34 @@ import os
 import pdb
 import pickle
 
+from typing import Any, Dict, List
+
 import click
 import numpy as np
 import streamlit as st
 
 from matplotlib import pyplot as plt
 from sklearn.metrics import auc, roc_curve, precision_recall_curve
-from toolz import compose, first, groupby, partition, second
+from toolz import partition
 
-from scripts.evaluate import (
-    MODELS,
+from scripts.data import (
     BASE_PATH,
     config,
-    load_true,
+    get_key_img,
+    load,
+    parse_token,
+    wav_path_to_key,
     wav_to_img_path,
 )
-
-
-def load(path, parser):
-    with open(path, "r") as f:
-        return list(map(parser, f.readlines()))
-
-
-def parse_token(line):
-    key, *words = line.strip().split()
-    text = " ".join(words)
-    img, i = key.split("#")
-    key1 = img.split(".")[0] + "_" + str(i)
-    return key1, text
-
-
-def wav_path_to_key(wav_path):
-    _, filename = os.path.split(wav_path)
-    key, _ = os.path.splitext(filename)
-    return key
-
-
-def get_key_img(key):
-    *parts, _ = key.split("_")
-    return "_".join(parts)
+from scripts.evaluate import (
+    MODELS,
+    load_true,
+)
+from scripts.evaluate_group_by_image import group_true_and_pred
 
 
 def reverse_non_injective_dict(d):
-    q = {}
+    q = {}  # type: Dict[Any, List[Any]]
     for k, v in d.items():
         q.setdefault(v, []).append(k)
     return q
@@ -117,6 +102,7 @@ def main():
 
     vocab = data["VOCAB"]
     samples = data["test"]
+    keys = [wav_path_to_key(sample["wave"]) for sample in samples]
 
     vocab_inv = {i: w for w, i in vocab.items()}
     words = [vocab_inv[i] for i in range(len(vocab))]
@@ -161,18 +147,11 @@ def main():
         # Group groundtruth and predictions corresponding to the same image.
         # Groundtruth is aggergated by the `or` function, while the predictions
         # should all be the same, since they are based only on the input image.
-
-        key_to_key_img = {key: get_key_img(key) for key in key_to_transcript.keys()}
+        key_to_key_img = {key: get_key_img(key) for key in keys}
         key_img_to_keys = reverse_non_injective_dict(key_to_key_img)
+        keys_img = sorted(key_img_to_keys.keys())
 
-        indices_keys = enumerate(wav_path_to_key(sample["wave"]) for sample in samples)
-        indices_keys_groups = groupby(compose(get_key_img, second), indices_keys)
-
-        keys_img = sorted(indices_keys_groups.keys())
-        indices_groups = [list(map(first, indices_keys_groups[k])) for k in keys_img]
-
-        true = np.vstack([np.any(true[ids], axis=0) for ids in indices_groups])
-        pred = np.vstack([pred[ids][0] for ids in indices_groups])
+        true, pred = group_true_and_pred(data, true, pred)
 
         def prepare_sample(word_id, sample_id, rank):
             key_img = keys_img[sample_id]
