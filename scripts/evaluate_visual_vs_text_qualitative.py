@@ -35,6 +35,21 @@ def reverse_non_injective_dict(d):
     return q
 
 
+def plot_metrics(axs, true, pred):
+    precision, recall, _ = precision_recall_curve(true, pred)
+    fpr, tpr, _ = roc_curve(true, pred)
+
+    axs[0].plot(recall, precision)
+    axs[0].set_xlabel("recall")
+    axs[0].set_ylabel("precision")
+
+    axs[1].plot(fpr, tpr)
+    axs[1].set_xlabel("FPR")
+    axs[1].set_ylabel("TPR")
+
+    return axs
+
+
 def show1(word, results):
     true = results.true
     pred = results.pred
@@ -44,19 +59,10 @@ def show1(word, results):
     pred1 = results.pred[:, word_id]
 
     # quantitative metrics
-    precision, recall, _ = precision_recall_curve(true1, pred1)
-    fpr, tpr, _ = roc_curve(true1, pred1)
-
     fig, axs = plt.subplots(ncols=2, figsize=(5.5, 2.5), tight_layout=True)
+    plot_metrics(axs, true, pred)
 
-    axs[0].plot(recall, precision)
-    axs[0].set_xlabel("recall")
-    axs[0].set_ylabel("precision")
     axs[0].set_title("AUPR: {:.1f}%".format(100 * auc(recall, precision)))
-
-    axs[1].plot(fpr, tpr)
-    axs[1].set_xlabel("FPR")
-    axs[1].set_ylabel("TPR")
     axs[1].set_title("AUROC: {:.1f}%".format(100 * auc(fpr, tpr)))
 
     col1, _ = st.beta_columns(2)

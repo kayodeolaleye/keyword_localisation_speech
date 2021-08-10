@@ -12,35 +12,18 @@ from scripts.evaluate import MODELS, load_true, eval_report, BASE_PATH, config
 from scripts.evaluate_visual_vs_text_qualitative import (
     Results,
     ResultsGroupByImage,
+    plot_metrics,
     show_top10,
     show_bot5pos,
 )
 
 
-def plot_metrics(axs, true, pred):
-    precision, recall, _ = precision_recall_curve(true, pred)
-    fpr, tpr, _ = roc_curve(true, pred)
-
-    axs[0].plot(recall, precision)
-    axs[0].set_xlabel("recall")
-    axs[0].set_ylabel("precision")
-
-    axs[1].plot(fpr, tpr)
-    axs[1].set_xlabel("FPR")
-    axs[1].set_ylabel("TPR")
-
-    return axs
-
-
 def show1(word_id, results1, results2):
     true = results1.true
 
-    metrics1 = eval_report(results1.true[:, word_id], results1.pred[:, word_id])
-    metrics2 = eval_report(results2.true[:, word_id], results2.pred[:, word_id])
-
     fig, axs = plt.subplots(ncols=2, figsize=(5.5, 3.0), tight_layout=True)
-    axs = plot_metrics(axs, true[:, word_id], results1.pred[:, word_id])
-    axs = plot_metrics(axs, true[:, word_id], results2.pred[:, word_id])
+    axs, metrics1 = plot_metrics(axs, true[:, word_id], results1.pred[:, word_id])
+    axs, metrics2 = plot_metrics(axs, true[:, word_id], results2.pred[:, word_id])
 
     def set_legend(ax, names):
         # Shrink current axis's height by 10% on the bottom
