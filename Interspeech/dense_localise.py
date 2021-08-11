@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import argparse
-from utils import ensure_folder, extract_feature, get_gt_token_duration, get_logger, get_localisation_metric_count, eval_localisation_prf, split_frame_length, plot_stuff
+from utils import ensure_folder, extract_feature, get_gt_token_duration, get_logger, get_localisation_metric_count, eval_localisation_accuracy, eval_localisation_prf, split_frame_length, plot_stuff
 from os import path
 from config import pickle_file, device, trained_model_dir
 import pickle
@@ -63,6 +63,8 @@ if __name__ == "__main__":
     l_n_tp = 0
     l_n_fp = 0
     l_n_fn = 0
+    score = 0
+    total = 0
 
     for i in tqdm(range(num_samples)):
         sample = samples[i]
@@ -116,6 +118,9 @@ if __name__ == "__main__":
         l_n_fp += l_analysis[1]
         l_n_fn += l_analysis[2]
 
+        s, t = eval_localisation_accuracy(hyp_duration, token_gt_duration)
+        score += s
+        total += t
         # plot_stuff(valid_proposed_max_durations, all_utt_segment_dur, all_utt_seg_score, target_dur_full, wave, iVOCAB)
     
     # # Compute precision, recall and fscore for localisation task
@@ -128,6 +133,7 @@ if __name__ == "__main__":
     print("Precision: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fp), l_precision*100.))
     print("Recall: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fn), l_recall*100.))
     print("F-score: {:.4f}%".format(l_fscore*100.))
+    print("Accuracy: {} / {} =  {:.4f}%".format(score, total, (score/total) * 100.0))
     print("-"*79)
 
 

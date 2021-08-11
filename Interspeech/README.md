@@ -62,7 +62,7 @@ To visualise the training process
 
 ### Evaluate CNNAttend model
 
-    python test_cnnattend.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
+    python test_cnnattend.py --model_path 1623513734_cnnattend_bow --target_type bow --test_threshold 0.4
 
 ### Train CNN_PoolAttend model Bag-of-words (bow) targets
 
@@ -70,7 +70,7 @@ To visualise the training process
 
 ### Evaluate CNN_PoolAttend model
 
-    $ python test_cnnpoolattend.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
+    $ python test_cnnpoolattend.py --model_path 1623431631_cnnpoolattend_bow --target_type bow --test_threshold 0.4
 
 
 ### Train CNNAttend model using soft (visual) targets
@@ -83,7 +83,7 @@ To visualise the training process
 
 ### Evaluate CNNAttend model
 
-    $ python test_cnnattend.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    $ python test_cnnattend.py --model_path 1623340455_cnnattend_soft --target_type soft --test_threshold 0.4
 
 ### Train CNN_PoolAttend model soft (visual) targets
 
@@ -91,7 +91,7 @@ To visualise the training process
 
 ### Evaluate CNN_PoolAttend model
 
-    $ python test_cnnpoolattend.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    $ python test_cnnpoolattend.py --model_path 1623491324_cnnpoolattend_soft --target_type soft --test_threshold 0.4
 
 
 
@@ -108,7 +108,7 @@ To visualise the training process
 
 ### denseCNNAttend Visual
 
-    python dense_cnnattend.py --model_path 1623340455_cnnattend_soft --target_type soft --test_threshold 0.4 --min_frame 20 --max_frame 60 --step 3
+    python dense_localise.py --model_path 1623340455_cnnattend_soft --target_type soft --test_threshold 0.4 --min_frame 20 --max_frame 60 --step 3
 
 #### Results
 
@@ -194,5 +194,67 @@ To visualise the training process
     Precision: 19.3309%
     Recall: 12.4089%
     F-score: 15.1151%
+
+
+### Keyword Spotting CNN-Attend BoW
+
+    python kws_cnnattend.py --model_path 1623513734_cnnattend_bow --target_type bow --analyze
+
+#### Results
+    Keyword spotting
+    Average P@10: 0.9448
+    Average P@N: 0.8117
+    Average EER: 0.0516
+
+    Keyword spotting localisation
+    Average P@10: 0.6896
+    Average P@N: 0.6716
+
+### Keyword Spotting CNN-Attend Soft
+
+    python kws_cnnattend.py --model_path 1623340455_cnnattend_soft --target_type soft --analyze
+
+#### Results
+
+    Keyword spotting
+    Average P@10: 0.4403
+    Average P@N: 0.3100
+    Average EER: 0.2202
+
+    Keyword spotting localisation
+    Average P@10: 0.5239
+    Average P@N: 0.5050
+
+
+### Keyword Spotting CNN-PoolAttend BoW
+
+    python kws_cnnpoolattend.py --model_path 1623431631_cnnpoolattend_bow --target_type bow --analyze
+
+#### Results
+
+    Keyword spotting
+    Average P@10: 0.9224
+    Average P@N: 0.7517
+    Average EER: 0.0961
+
+    Keyword spotting localisation
+    Average P@10: 0.4284
+    Average P@N: 0.3959
+
+
+### Keyword Spotting CNN-PoolAttend Soft
+
+    python kws_cnnpoolattend.py --model_path 1623491324_cnnpoolattend_soft --target_type soft --analyze
+
+#### Results
+
+    Keyword spotting
+    Average P@10: 0.3537
+    Average P@N: 0.2473
+    Average EER: 0.2680
+
+    Keyword spotting localisation
+    Average P@10: 0.1910
+    Average P@N: 0.1981
 
 

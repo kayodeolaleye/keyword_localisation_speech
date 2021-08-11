@@ -317,6 +317,25 @@ def get_localisation_metric_count(hyp_loc, gt_loc):
 
     return n_tp, n_fp, n_fn
 
+def eval_localisation_accuracy(hyp_loc, gt_loc):
+    score = 0
+    total = 0
+
+    for gt_start_end_frame, gt_token in gt_loc:
+        if gt_token not in [hyp_token for _, hyp_token in hyp_loc]:
+            total += 1
+    
+        if gt_token in [hyp_token for _, hyp_token in hyp_loc]:
+            total += 1
+        
+        for hyp_frame, hyp_token in hyp_loc:
+            if hyp_token == gt_token and (gt_start_end_frame[0] <= hyp_frame < gt_start_end_frame[1] or gt_start_end_frame[0] < hyp_frame <= gt_start_end_frame[1]):
+                score += 1
+
+    return score, total
+
+
+
 def eval_localisation_prf(n_tp, n_fp, n_fn):
     precision = n_tp / (n_tp + n_fp)
     recall = n_tp / (n_tp + n_fn)
@@ -386,3 +405,11 @@ def plot_stuff(valid_proposed_max_durations, all_utt_segment_dur, all_utt_seg_sc
     ensure_folder("plots")
     file_path = path.join("plots", utt_key + ".pdf")
     plt.savefig(file_path, dpi=150)
+
+
+def get_token_dur_dict(target_dur):
+    token_dur_dict = {}
+    for start_end, dur, tok in target_dur:
+        token_dur_dict[tok.casefold()] = start_end
+
+    return token_dur_dict

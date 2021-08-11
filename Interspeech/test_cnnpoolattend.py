@@ -5,7 +5,7 @@ from tqdm import tqdm
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 import argparse
-from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count, get_localisation_metric_count, eval_localisation_prf
+from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count, eval_localisation_accuracy, get_localisation_metric_count, eval_localisation_prf
 from os import path
 from config import pickle_file, device, trained_model_dir
 import pickle
@@ -66,6 +66,9 @@ if __name__ == "__main__":
     l_n_fp = 0
     l_n_fn = 0
 
+    score = 0
+    total = 0
+
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
@@ -121,6 +124,10 @@ if __name__ == "__main__":
         l_n_fp += l_analysis[1]
         l_n_fn += l_analysis[2]
 
+        s, t = eval_localisation_accuracy(hyp_duration, token_gt_duration)
+        score += s
+        total += t
+
     # Compute precision, recall and fscore for detection task
     d_precision, d_recall, d_fscore = eval_detection_prf(d_n_tp, d_n_tp_fp, d_n_tp_fn)
 
@@ -148,6 +155,7 @@ if __name__ == "__main__":
     print("Precision: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fp), l_precision*100.))
     print("Recall: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fn), l_recall*100.))
     print("F-score: {:.4f}%".format(l_fscore*100.))
+    print("Accuracy: {} / {} =  {:.4f}%".format(score, total, (score/total) * 100.0))
     print("-"*79)
 
 
