@@ -4,14 +4,15 @@ from tqdm import tqdm
 import argparse
 from scipy.signal import find_peaks
 
-from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count,  eval_localisation_accuracy, get_localisation_metric_count, eval_localisation_prf
+from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count, eval_localisation_accuracy, get_localisation_metric_count, eval_localisation_prf
 from os import path
 # from models.psc import PSC
 
-from config import pickle_file, device, trained_model_dir
+from config import pickle_file, device, trained_model_dir, keywords_fn
 import pickle
-from utils import parse_args
+from utils import parse_args, get_keywords
 
+word_to_id = get_keywords(keywords_fn)
 def parse_args():
     parser = argparse.ArgumentParser(description='Keyword detection and localisation in speech')
     parser.add_argument('--model_path', type=str, help='path where the model to be tested is stored')
@@ -79,8 +80,9 @@ if __name__ == "__main__":
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
-        gt_trn = sample["trn"]
-        target_dur = sample["dur"]
+        gt_trn = [i for i in sample["trn"] if i in word_to_id]
+        # target_dur = sample["dur"]
+        target_dur = [(start_end, dur, tok) for (start_end, dur, tok) in sample["dur"] if  tok.casefold() in word_to_id]
         feature = extract_feature(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
         padded_input, input_length = pad(feature)
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
@@ -92,10 +94,10 @@ if __name__ == "__main__":
             sigmoid_out = torch.sigmoid(out)
     
         # Evaluating model's performance on detection of keywords in one utterance
-        hyp_trn = [iVOCAB[i] for i in np.where(sigmoid_out.squeeze(0).cpu() >= args.test_threshold)[0]]
+        hyp_trn = [iVOCAB[i] for i in np.where(sigmoid_out.squeeze(0).cpu() >= args.test_threshold)[0] if iVOCAB[i] in word_to_id]
         # print("GT: {}\n HYP: {}".format(gt_trn, hyp_trn))
 
-        d_analysis = get_detection_metric_count(hyp_trn, gt_trn, VOCAB)
+        d_analysis = get_detection_metric_count(hyp_trn, gt_trn, word_to_id)
         d_n_tp += d_analysis[0]
         d_n_tp_fp += d_analysis[1]
         d_n_tp_fn += d_analysis[2]
@@ -106,7 +108,7 @@ if __name__ == "__main__":
         # print("Frame score shape: ", frame_score.shape)
         tokens = list(VOCAB.keys())
         valid_hyp_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in tokens if tok.casefold() in hyp_trn] # List of words detected by model with a prob > a threshold
-        valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn if tok.casefold() in tokens] # remove tokens that are not in the speech vocabulary
+        valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn if tok.casefold() in word_to_id] # remove tokens that are not in the speech vocabulary
 
         hyp_duration = []
         for tok in valid_hyp_trn:
@@ -133,12 +135,14 @@ if __name__ == "__main__":
         s, t = eval_localisation_accuracy(hyp_duration, token_gt_duration)
         score += s
         total += t
+    
 
     # Compute precision, recall and fscore for detection task
     d_precision, d_recall, d_fscore = eval_detection_prf(d_n_tp, d_n_tp_fp, d_n_tp_fn)
 
     # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
+
 
     # Print status
     print

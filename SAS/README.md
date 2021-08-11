@@ -62,7 +62,7 @@ To visualise the training process
 
 ### Evaluate PSC model
 
-    python test_psc.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
+    python test_psc.py --model_path 1621334318_psc_bow --target_type bow --test_threshold 0.4
 
 ### Results on test set
 
@@ -99,9 +99,9 @@ To visualise the training process
     F-score: 60.6%
 
 
-### Results on 67 keywords
+### 67 keywords
 
-    python test_psc_67.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
+    python test_psc_67.py --model_path 1621334318_psc_bow --target_type bow --test_threshold 0.4
 
 ### Train CNN_Pool model Bag-of-words (bow) targets
 
@@ -109,7 +109,7 @@ To visualise the training process
 
 ### Evaluate CNN_Pool model
 
-    $ python test_cnnpool.py --model_path [MODEL ID] --target_type bow --test_threshold 0.4
+    $ python test_cnnpool.py --model_path 1622451369_cnnpool_bow --target_type bow --test_threshold 0.4
 
 
 ### Train PSC model using soft (visual) targets
@@ -122,7 +122,11 @@ To visualise the training process
 
 ### Evaluate PSC model
 
-    $ python test_psc.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    $ python test_psc.py --model_path 1621293877_psc_soft --target_type soft --test_threshold 0.4
+
+### Results on 67 keywords
+
+    python test_psc_67.py --model_path 1621293877_psc_soft --target_type soft --test_threshold 0.4
 
 ### Results on test set
 
@@ -164,12 +168,17 @@ To visualise the training process
 
 ### Train CNN_Pool model soft (visual) targets
 
-    $ python train_cnnpool.py --target_type soft --val_threshold 0.4 --out_dim 1000 --temp_ratio 1.2 --epochs 100 --lr 0.0001
+    python train_cnnpool.py --target_type soft --val_threshold 0.4 --out_dim 1000 --temp_ratio 1.2 --epochs 100 --lr 0.0001
 
 ### Evaluate CNN_Pool model
 
-    $ python test_cnnpool.py --model_path [MODEL ID] --target_type soft --test_threshold 0.4
+    python test_cnnpool.py --model_path 1621368712_cnnpool_soft --target_type soft --test_threshold 0.4
 
+### Results on 67 keywords
+
+    python test_cnnpool_67.py --model_path 1622451369_cnnpool_bow --target_type bow --test_threshold 0.4
+
+    python test_cnnpool_67.py --model_path 1621368712_cnnpool_soft --target_type soft --test_threshold 0.4
 
 ### Results on test set
 
@@ -208,29 +217,43 @@ To visualise the training process
     F-score: 4.5%
 
 
-### Exact Keyword Spotting
+### Keyword Spotting
 
     BoW PSC
 
     python kws_psc.py --model_path 1621334318_psc_bow --target_type bow --analyze
 
-    Average P@10: 80.2%
-    Average P@N: 68.1%
-    Average EER: 10.1%
+    Keyword spotting
+    Average P@10: 0.8015
+    Average P@N: 0.6805
+    Average EER: 0.1004
+
+    Keyword spotting localisation
+    Average P@10: 0.6582
+    Average P@N: 0.6631
 
     Soft PSC
 
-    python3 kws_psc.py --model_path 1621293877_psc_soft --target_type soft --analyze
+    python kws_psc.py --model_path 1621293877_psc_soft --target_type soft --analyze
 
-    Average P@10: 19.7%
-    Average P@N: 14.0%
-    Average EER: 35.6%
+    Keyword spotting
+    Average P@10: 0.1970
+    Average P@N: 0.1401
+    Average EER: 0.3554
 
-    python3 kws_cnnpool.py --model_path 1622451369_cnnpool_bow --target_type bow --analyze
+    Keyword spotting localisation
+    Average P@10: 0.2299
+    Average P@N: 0.2529
+
+    BoW CNN-Pool
+    
+    python kws_cnnpool.py --model_path 1622451369_cnnpool_bow --target_type bow --analyze
 
     Average P@10: 95.5%
     Average P@N: 75.0%
     Average EER: 6.2%
+
+    Soft CNN-Pool
 
     python3 kws_cnnpool.py --model_path 1621368712_cnnpool_soft --target_type soft --analyze
 
