@@ -10,7 +10,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 import sklearn.metrics as metrics
 
-from utils import extract_feature, get_logger, compute_cam
+from utils import extract_feature, get_logger, compute_cam, get_token_dur_dict
 from os import path
 from models.gradcam import GradCAM
 
@@ -150,9 +150,7 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, c
     p_at_10_loc = np.mean(p_at_10_loc)
     p_at_n_loc = np.mean(p_at_n_loc)
 
-    return p_at_10, p_at_n, eer, p_at_10_loc, p_at_n_loc     
-
-    return p_at_10, p_at_n, eer         
+    return p_at_10, p_at_n, eer, p_at_10_loc, p_at_n_loc          
 
 def get_index(samples, utt_order):
     utt_to_index = {}
@@ -233,7 +231,7 @@ if __name__ == "__main__":
         cams_utt_dict[wave] = compute_cam(grad_cam, padded_input, iVOCAB)
 
     print("Evaluating model's performance on keyword spotting in one utterance")
-    p_at_10, p_at_n, eer = eval_kws(
+    p_at_10, p_at_n, eer, p_at_10_loc, p_at_n_loc = eval_kws(
         sigmoid_dict, VOCAB, keyword_counts, label_dict, target_dur_dict, cams_utt_dict, args.analyze
         )
 
