@@ -79,7 +79,7 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, c
             token_dur_dict = get_token_dur_dict(target_dur_dict[utt])
             if keyword in label_dict[utt]:
                 y_true.append(1)
-                cam_token = cams_utt_dict[utt][vocab[keyword]] #[1, :]
+                cam_token = cams_utt_dict[utt][keyword] #[1, :]
                 time = np.linspace(0, cam_token.shape[0], num=cam_token.shape[0])
                 fit = interp1d(time, cam_token, axis=0)
                 new_time = np.linspace(0, cam_token.shape[0], num=800)
@@ -227,6 +227,7 @@ if __name__ == "__main__":
             sigmoid_out = torch.sigmoid(out)
         sigmoid_dict[wave] = sigmoid_out.squeeze(0).cpu().numpy()
         label_dict[wave] = gt_trn
+        target_dur_dict[wave] = target_dur
         # GradCAM computation for a single utterance.
         cams_utt_dict[wave] = compute_cam(grad_cam, padded_input, iVOCAB)
 

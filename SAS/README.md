@@ -246,19 +246,23 @@ To visualise the training process
     Average P@N: 0.2529
 
     BoW CNN-Pool
-    
-    python kws_cnnpool.py --model_path 1622451369_cnnpool_bow --target_type bow --analyze
 
-    Average P@10: 95.5%
-    Average P@N: 75.0%
-    Average EER: 6.2%
+    Keyword spotting
+    Average P@10: 0.9552
+    Average P@N: 0.7497
+    Average EER: 0.0619
 
-    Soft CNN-Pool
+    Keyword spotting localisation
+    Average P@10: 0.1582
+    Average P@N: 0.1469
 
-    python3 kws_cnnpool.py --model_path 1621368712_cnnpool_soft --target_type soft --analyze
+    Visual CNN-Pool
 
-    Average P@10: 44.5%
-    Average P@N: 28.2%
-    Average EER: 22.8%
+    Keyword spotting
+    Average P@10: 0.4448
+    Average P@N: 0.2815
+    Average EER: 0.2280
 
-
+    Keyword spotting localisation
+    Average P@10: 0.1015
+    Average P@N: 0.1083
