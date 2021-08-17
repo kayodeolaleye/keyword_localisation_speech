@@ -1,10 +1,8 @@
-from time import monotonic
 import torch
 import numpy as np
 from tqdm import tqdm
 import time
 import calendar
-from numba.cuda import args
 from os import path
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
@@ -130,9 +128,8 @@ def train(train_loader, model, optimizer, epoch, logger, target_type):
     for i, (data) in enumerate(train_loader):
         # Move to GPU, if available
         target = None
-        padded_input, bow_target, soft_target, _, input_lengths = data
+        padded_input, bow_target, soft_target, _, _ = data
         padded_input = padded_input.to(device)
-        input_lengths = input_lengths.to(device)
         if target_type == 'bow':
             target = bow_target.to(device)
         elif target_type == 'soft':
@@ -142,7 +139,7 @@ def train(train_loader, model, optimizer, epoch, logger, target_type):
             break
 
         # Forward prop.
-        out, attention_Weights = model(padded_input)
+        out, _ = model(padded_input)
         loss = criterion(torch.sigmoid(out), target)
 
         # Back prop.
