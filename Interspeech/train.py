@@ -11,14 +11,20 @@ import torch.nn as nn
 
 from config import device, num_workers, print_freq, trained_model_dir
 from data_gen import Flickr8kDataset, pad_collate
-from models.cnnattend import CNNAttend
-from models.optimizer import PSCOptimizer
+from models import MODELS
 
 from utils import ensure_folder, get_logger, parse_args, save_checkpoint, AverageMeter, write_hist_to_tb, write_scalar_to_tb
 
+
+SEEDS = {
+    "cnnattend": 42,
+    "cnnpoolattend": 7,
+}
+
 def train_net(args):
-    torch.manual_seed(42)
-    np.random.seed(42)
+    seed = SEEDS[args.model]
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
     model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type
     print("Model ID: ", model_id)
@@ -36,7 +42,7 @@ def train_net(args):
     # Initialise / load checkpoint
     if checkpoint is None:
         # model
-        model = CNNAttend(args.vocab_size, args.embed_size)
+        model = MODELS[args.model](args.vocab_size, args.embed_size)
         print(model)
         model.to(device)
 

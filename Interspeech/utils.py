@@ -9,6 +9,7 @@ import logging
 import numpy as np
 from config import flickr8k_folder
 import librosa
+from models import MODELS
 
 
 def parse_args():
@@ -60,6 +61,7 @@ def parse_args():
     parser.add_argument('--embed_size', default=1024, type=int, help='embedding dimension / dimension of the convolutional feature')
     parser.add_argument('--vocab_size', default=67, type=int, help='Size of speech corpus vocabulary')
     parser.add_argument('--data_size', default=100, type=int, help='Quantity of speech corpus to use during training')
+    parser.add_argument('--model', default="cnnattend", choices=MODELS.keys(), help='The type of models to use')
 
     args = parser.parse_args()
     return args

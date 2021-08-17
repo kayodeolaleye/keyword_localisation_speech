@@ -72,6 +72,7 @@ if __name__ == "__main__":
         gt_trn = [i for i in sample["trn"] if i in VOCAB]
         target_dur = [(start_end, dur, tok) for (start_end, dur, tok) in sample["dur"] if  tok.casefold() in VOCAB]
         feature = extract_feature(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
+        # TODO? feature = (feature - feature.mean()) / feature.std()
         padded_input, input_length = pad(feature)
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
         input_length = torch.tensor([input_length]).to(device)
