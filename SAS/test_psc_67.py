@@ -1,16 +1,18 @@
-from librosa.core.audio import get_duration
 import numpy as np
 import torch
 from tqdm import tqdm
-from scipy.interpolate import interp1d
-from scipy.signal import find_peaks
 import argparse
+from scipy.signal import find_peaks
+
 from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count, eval_localisation_accuracy, get_localisation_metric_count, eval_localisation_prf
 from os import path
-from config import pickle_file, device, trained_model_dir
-import pickle
-from utils import parse_args
+# from models.psc import PSC
 
+from config import pickle_file, device, trained_model_dir, keywords_fn
+import pickle
+from utils import parse_args, get_keywords
+
+word_to_id = get_keywords(keywords_fn)
 def parse_args():
     parser = argparse.ArgumentParser(description='Keyword detection and localisation in speech')
     parser.add_argument('--model_path', type=str, help='path where the model to be tested is stored')
@@ -36,7 +38,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     logger = get_logger()
-
+    VOCAB = None
     with open(pickle_file, "rb") as f:
         data = pickle.load(f)
 
@@ -50,6 +52,12 @@ if __name__ == "__main__":
 
     
     samples = data["test"] # change to "test" later on
+
+    # filename = path.join(trained_model_dir, args.model_path,, "psc_" + args.target_type + "_model.pth")
+    # model = PSC(args.out_dim, args.temp_ratio)
+    # model.load_state_dict(torch.load(filename))
+    # model = model.to(device)
+    # model.eval()
 
     checkpoint =path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")
     checkpoint = torch.load(checkpoint, map_location="cpu")
@@ -72,52 +80,52 @@ if __name__ == "__main__":
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
-        gt_trn = [i for i in sample["trn"] if i in VOCAB]
-        # print("gt_trn: ", gt_trn)
-        target_dur = [(start_end, dur, tok) for (start_end, dur, tok) in sample["dur"] if  tok.casefold() in VOCAB]
+        gt_trn = [i for i in sample["trn"] if i in word_to_id]
+        # target_dur = sample["dur"]
+        target_dur = [(start_end, dur, tok) for (start_end, dur, tok) in sample["dur"] if  tok.casefold() in word_to_id]
         feature = extract_feature(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
         padded_input, input_length = pad(feature)
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
-        # input_length = torch.tensor([input_length]).to(device)
-
+        input_length = torch.tensor([input_length]).to(device)
+        # print("Input length: ", input_length.shape)
         with torch.no_grad():
-            out, attention_weights = model(padded_input)
+            out, frame_score = model(padded_input, input_length)
             
             sigmoid_out = torch.sigmoid(out)
-        # print("sigmoid shape: ", sigmoid_out.shape)
+    
         # Evaluating model's performance on detection of keywords in one utterance
-        hyp_trn = [iVOCAB[i] for i in np.where(sigmoid_out.squeeze(0).cpu() >= args.test_threshold)[0]]
+        hyp_trn = [iVOCAB[i] for i in np.where(sigmoid_out.squeeze(0).cpu() >= args.test_threshold)[0] if iVOCAB[i] in word_to_id]
         # print("GT: {}\n HYP: {}".format(gt_trn, hyp_trn))
 
-        d_analysis = get_detection_metric_count(hyp_trn, gt_trn)
+        d_analysis = get_detection_metric_count(hyp_trn, gt_trn, word_to_id)
         d_n_tp += d_analysis[0]
         d_n_tp_fp += d_analysis[1]
         d_n_tp_fn += d_analysis[2]
 
         # Evaluating model's performance on localisation of keywords in one utterance
         
-        # attention_weights = attention_weights.squeeze(0)[:, :input_length]
-        # print("Attention weights score shape: ", attention_weights.shape)
+        frame_score = frame_score.squeeze(0)[:, :input_length]
+        # print("Frame score shape: ", frame_score.shape)
         tokens = list(VOCAB.keys())
         valid_hyp_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in tokens if tok.casefold() in hyp_trn] # List of words detected by model with a prob > a threshold
-        valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn] # if tok.casefold() in tokens] # remove tokens that are not in the speech vocabulary
-        # print("valid gt_trn: ", valid_gt_trn)
+        valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn if tok.casefold() in word_to_id] # remove tokens that are not in the speech vocabulary
+
         hyp_duration = []
         for tok in valid_hyp_trn:
-            token_attn_weight = attention_weights.squeeze(0).cpu().numpy()[tok[1], :]
-            time = np.linspace(0, token_attn_weight.shape[0], num=token_attn_weight.shape[0])
-            fit = interp1d(time, token_attn_weight, axis=0)
-            new_time = np.linspace(0, token_attn_weight.shape[0], num=800)
-            attn_weight_interpolated = fit(new_time)
-            token_attn_weight_unpadded = attn_weight_interpolated[:input_length]
+            token_frame_scores = torch.sigmoid(frame_score).cpu().numpy()[tok[1], :]
 
-            if not np.any(token_attn_weight_unpadded):
+            if not np.any(token_frame_scores):
                 continue
-            token_max_frame = np.argmax(token_attn_weight_unpadded)
-            hyp_duration.append((token_max_frame, tok[0]))
+            peaks, _ = find_peaks(token_frame_scores, prominence=0.05, width=0.05)
+
+            try:
+                token_max_frame = np.max(peaks)
+                hyp_duration.append((token_max_frame, tok[0]))
+
+            except:
+                pass
 
         token_gt_duration = get_gt_token_duration(target_dur, valid_gt_trn) # ground truth start and end time for each word in utterance
-        # print("gt_duration: ", token_gt_duration)
 
         l_analysis = get_localisation_metric_count(hyp_duration, token_gt_duration)
         l_n_tp += l_analysis[0]
@@ -127,12 +135,14 @@ if __name__ == "__main__":
         s, t = eval_localisation_accuracy(hyp_duration, token_gt_duration)
         score += s
         total += t
+    
 
     # Compute precision, recall and fscore for detection task
     d_precision, d_recall, d_fscore = eval_detection_prf(d_n_tp, d_n_tp_fp, d_n_tp_fn)
 
     # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
+
 
     # Print status
     print
@@ -150,14 +160,12 @@ if __name__ == "__main__":
     print("-"*79)
     print("LOCALISATION SCORES: ")
     print("Sigmoid threshold: {:.2f}".format(args.test_threshold))
-    print("No. predictions:", l_n_fp)
-    print("No. true tokens:", l_n_fn)
     print("Precision: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fp), l_precision*100.))
     print("Recall: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fn), l_recall*100.))
     print("F-score: {:.4f}%".format(l_fscore*100.))
+
     print("Accuracy: {} / {} =  {:.4f}%".format(score, total, (score/total) * 100.0))
     print("-"*79)
 
 
-# python test.py --model_path 1620808344_psc_bow --target_type bow --test_threshold 0.4
     

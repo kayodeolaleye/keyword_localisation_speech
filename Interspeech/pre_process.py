@@ -56,9 +56,7 @@ def get_vocab():
     word_tokens = []
     for utt in tran_dict:
         word_tokens.extend(tran_dict[utt])
-    # VOCAB = dict([
-        # (j[0], i) for i, j in enumerate(Counter(word_tokens).most_common(1000))
-        # ])
+
     VOCAB = get_keywords(keywords_fn)
 
     VOCAB_fn = path.join(tran_folder, "VOCAB.pkl")

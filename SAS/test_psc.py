@@ -4,7 +4,7 @@ from tqdm import tqdm
 import argparse
 from scipy.signal import find_peaks
 
-from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count, get_localisation_metric_count, eval_localisation_prf
+from utils import eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count,  eval_localisation_accuracy, get_localisation_metric_count, eval_localisation_prf
 from os import path
 # from models.psc import PSC
 
@@ -74,6 +74,8 @@ if __name__ == "__main__":
     l_n_fn = 0
 
     pred = []
+    score = 0
+    total = 0
 
     for i in tqdm(range(num_samples)):
         sample = samples[i]
@@ -95,7 +97,7 @@ if __name__ == "__main__":
         hyp_trn = [iVOCAB[i] for i in np.where(sigmoid_out.squeeze(0).cpu() >= args.test_threshold)[0]]
         # print("GT: {}\n HYP: {}".format(gt_trn, hyp_trn))
 
-        d_analysis = get_detection_metric_count(hyp_trn, gt_trn)
+        d_analysis = get_detection_metric_count(hyp_trn, gt_trn, VOCAB)
         d_n_tp += d_analysis[0]
         d_n_tp_fp += d_analysis[1]
         d_n_tp_fn += d_analysis[2]
@@ -130,6 +132,10 @@ if __name__ == "__main__":
         l_n_fp += l_analysis[1]
         l_n_fn += l_analysis[2]
 
+        s, t = eval_localisation_accuracy(hyp_duration, token_gt_duration)
+        score += s
+        total += t
+
     # Compute precision, recall and fscore for detection task
     d_precision, d_recall, d_fscore = eval_detection_prf(d_n_tp, d_n_tp_fp, d_n_tp_fn)
 
@@ -159,6 +165,8 @@ if __name__ == "__main__":
     print("Precision: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fp), l_precision*100.))
     print("Recall: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fn), l_recall*100.))
     print("F-score: {:.4f}%".format(l_fscore*100.))
+
+    print("Accuracy: {} / {} =  {:.4f}%".format(score, total, (score/total) * 100.0))
     print("-"*79)
 
 

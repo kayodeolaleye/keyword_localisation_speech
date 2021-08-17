@@ -6,14 +6,15 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import argparse
-
+from scipy.interpolate import interp1d
+from scipy.signal import find_peaks
 import sklearn.metrics as metrics
 
-from utils import extract_feature, get_logger
+from utils import extract_feature, get_logger, compute_cam, get_token_dur_dict
 from os import path
-# from models.psc import PSC
+from models.gradcam import GradCAM
 
-from config import pickle_file, device, trained_model_dir, keywords_8_fn
+from config import pickle_file, device, trained_model_dir, keywords_fn
 import pickle
 from utils import parse_args
 
@@ -22,6 +23,7 @@ def parse_args():
     parser.add_argument('--model_path', type=str, help='path where the model to be tested is stored')
     parser.add_argument('--target_type', type=str, help='provide the type of target to use for supervision')
     parser.add_argument('--test_threshold', type=float, help='threshold to use during testing')
+    parser.add_argument('--target_layer', type=int, default=7, help="Layer to compute gradcam on")
     parser.add_argument("--analyze", help="print an analysis of the evaluation output for each utterance", action="store_true")
 
     args = parser.parse_args()
@@ -39,7 +41,7 @@ def pad(feature):
 
     return padded_input, input_length
 
-def eval_kws(sigmoid_dict, vocab, keyword_counts, utterances, label_dict, analyze=False):
+def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, cams_utt_dict, analyze=False):
     # Copied from https://github.com/kamperh/recipe_semantic_flickraudio/blob/master/speech_nn/eval_keyword_spotting.py
     # Keyword spotting evaluation
     
@@ -47,16 +49,22 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, utterances, label_dict, analyz
     utterances = sorted(sigmoid_dict)
     keyword_ids = [vocab[w] for w in keywords]
 
-    print("keyword ids: ", keyword_ids)
+    # print("keyword ids: ", keyword_ids)
 
     # Get sigmoid matrix for keywords
     keyword_sigmoid_mat = np.zeros((len(utterances), len(keywords)))
     for i_utt, utt in enumerate(utterances):
         keyword_sigmoid_mat[i_utt, :] = sigmoid_dict[utt][keyword_ids]
 
+    # P@10/n for Keyword spotting
     p_at_10 = []
     p_at_n = []
     eer = []
+
+    # P@10/n for Keyword spotting localisation
+    p_at_10_loc = []
+    p_at_n_loc = []
+
     if analyze:
         print
     for i_keyword, keyword in enumerate(keywords):       
@@ -65,43 +73,84 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, utterances, label_dict, analyz
         utt_order = [utterances[i] for i in rank_order]
         # ordered_utt_to_id = get_index(samples, utt_order)
         
-        # EER
         y_true = []
+        y_true_loc = []
         for utt in utt_order:
+            token_dur_dict = get_token_dur_dict(target_dur_dict[utt])
             if keyword in label_dict[utt]:
                 y_true.append(1)
+                cam_token = cams_utt_dict[utt][keyword] #[1, :]
+                time = np.linspace(0, cam_token.shape[0], num=cam_token.shape[0])
+                fit = interp1d(time, cam_token, axis=0)
+                new_time = np.linspace(0, cam_token.shape[0], num=800)
+                cam_padded = fit(new_time)
+                cam_unpadded = cam_padded[:input_length]
+
+                if not np.any(cam_unpadded):
+                    continue
+            
+                peaks, _ = find_peaks(cam_unpadded, prominence=0.01, width=0.2)
+                try:
+                    token_max_frame = np.max(peaks)
+                except:
+                    pass
+                start_end = token_dur_dict[keyword]
+                if (start_end[0] <= token_max_frame < start_end[1] or start_end[0] < token_max_frame <= start_end[1]):
+                    y_true_loc.append(1)
+                else:
+                    y_true_loc.append(0)
+
+
             else:
                 y_true.append(0)
         y_score = keyword_sigmoid_mat[:, i_keyword][rank_order]
      
-        # print(len(y_score))
+        # EER
         cur_eer = calculate_eer(y_true, y_score)
         eer.append(cur_eer)
 
-        # P@10
+        # P@10 for keyword spotting
         cur_p_at_10 = float(sum(y_true[:10])) / 10.
         p_at_10.append(cur_p_at_10)
 
-        # P@N
+        # P@N for keyword spotting
         cur_p_at_n = float(sum(y_true[:sum(y_true)])) / sum(y_true)
         p_at_n.append(cur_p_at_n)
+
+        # P@10 for keyword spotting localisation
+        cur_p_at_10_loc = float(sum(y_true_loc[:10])) / 10.
+        p_at_10_loc.append(cur_p_at_10_loc)
+
+        # P@N for keyword spotting for localisation
+        if sum(y_true_loc) == 0:
+            continue
+        cur_p_at_n_loc = float(sum(y_true_loc[:sum(y_true_loc)])) / sum(y_true_loc)
+        p_at_n_loc.append(cur_p_at_n_loc)
 
         if analyze:
             print("-"*79)
             print("Keyword:", keyword)
+            print("Keyword spotting")
             print("Current P@10: {:.4f}".format(cur_p_at_10))   
             print("Current P@N: {:.4f}".format(cur_p_at_n))
             print("Current EER: {:.4f}".format(cur_eer))
+            print("Keyword spotting localisation")
+            print("Current P@10: {:.4f}".format(cur_p_at_10_loc))   
+            print("Current P@N: {:.4f}".format(cur_p_at_n_loc))
         # print(y_true)
     if analyze:
         print("-"*79)
         print
-    # Average
+    # Average Keyword spotting
     p_at_10 = np.mean(p_at_10)
     p_at_n = np.mean(p_at_n)
     eer = np.mean(eer)
 
-    return p_at_10, p_at_n, eer         
+    # Average Keyword spotting localisation
+    p_at_10_loc = np.mean(p_at_10_loc)
+    p_at_n_loc = np.mean(p_at_n_loc)
+
+    return p_at_10, p_at_n, eer, p_at_10_loc, p_at_n_loc          
 
 def get_index(samples, utt_order):
     utt_to_index = {}
@@ -137,7 +186,7 @@ if __name__ == "__main__":
     # Read keywords
     # print("Reading:", keywords_8_fn)
     keywords = []
-    with open(keywords_8_fn, "r") as f:
+    with open(keywords_fn, "r") as f:
         for line in f:
             keywords.append(line.strip())
     # print("Keywords:", keywords)
@@ -152,6 +201,8 @@ if __name__ == "__main__":
     checkpoint =path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")
     checkpoint = torch.load(checkpoint, map_location="cpu")
     model = checkpoint["model"].to(device)
+    
+    grad_cam = GradCAM(model, target_layer=args.target_layer) # Create an object for GradCAM computation
     model.eval()
     num_samples = len(samples)
     iVOCAB = dict([(i[1], i[0]) for i in VOCAB.items()])
@@ -159,7 +210,8 @@ if __name__ == "__main__":
     # Get sigmoid matrix for keywords
     sigmoid_dict = {}
     label_dict = {}
-    utterances = []
+    cams_utt_dict = {}
+    target_dur_dict = {}
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
@@ -173,23 +225,28 @@ if __name__ == "__main__":
             out = model(padded_input)
            
             sigmoid_out = torch.sigmoid(out)
-        for j in range(sigmoid_out.shape[0]):
-            sigmoid_dict[wave] = sigmoid_out.cpu()[j, :]
-            label_dict[wave] = gt_trn
-
-        utterances.append(wave)
+        sigmoid_dict[wave] = sigmoid_out.squeeze(0).cpu().numpy()
+        label_dict[wave] = gt_trn
+        target_dur_dict[wave] = target_dur
+        # GradCAM computation for a single utterance.
+        cams_utt_dict[wave] = compute_cam(grad_cam, padded_input, iVOCAB)
 
     print("Evaluating model's performance on keyword spotting in one utterance")
-    p_at_10, p_at_n, eer = eval_kws(
-        sigmoid_dict, VOCAB, keyword_counts, utterances, label_dict, args.analyze
+    p_at_10, p_at_n, eer, p_at_10_loc, p_at_n_loc = eval_kws(
+        sigmoid_dict, VOCAB, keyword_counts, label_dict, target_dur_dict, cams_utt_dict, args.analyze
         )
 
     print
     print("-"*79)
+    print("Keyword spotting")
     print("Average P@10: {:.4f}".format(p_at_10))
     print("Average P@N: {:.4f}".format(p_at_n))
     print("Average EER: {:.4f}".format(eer))
+    print("Keyword spotting localisation")
+    print("Average P@10: {:.4f}".format(p_at_10_loc))
+    print("Average P@N: {:.4f}".format(p_at_n_loc))
     print("-"*79)
+
 
 
 # python kws.py --model_path 1621334318_psc_bow --target_type bow --analyze

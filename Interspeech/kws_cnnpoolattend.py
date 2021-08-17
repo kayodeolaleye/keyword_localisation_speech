@@ -1,4 +1,3 @@
-
 import sklearn.metrics as metrics
 from scipy.interpolate import interp1d
 from scipy.optimize import brentq
@@ -6,6 +5,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import argparse
+from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 import sklearn.metrics as metrics
 
@@ -39,7 +39,7 @@ def pad(feature):
 
     return padded_input, input_length
 
-def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, frame_score_dict, analyze=False):
+def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, attention_weights_dict, analyze=False):
     # Copied from https://github.com/kamperh/recipe_semantic_flickraudio/blob/master/speech_nn/eval_keyword_spotting.py
     # Keyword spotting evaluation
     
@@ -79,19 +79,21 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, f
             token_dur_dict = get_token_dur_dict(target_dur_dict[utt])
             if keyword in label_dict[utt]:
                 y_true.append(1)
-                token_frame_scores = frame_score_dict[utt][vocab[keyword], :]
-                if not np.any(token_frame_scores):
+                token_attn_weight = attention_weights_dict[utt][vocab[keyword], :]
+                time = np.linspace(0, token_attn_weight.shape[0], num=token_attn_weight.shape[0])
+                fit = interp1d(time, token_attn_weight, axis=0)
+                new_time = np.linspace(0, token_attn_weight.shape[0], num=800)
+                attn_weight_interpolated = fit(new_time)
+                token_attn_weight_unpadded = attn_weight_interpolated[:input_length]
+                if not np.any(token_attn_weight_unpadded):
                     continue
-                peaks, _ = find_peaks(token_frame_scores, prominence=0.05, width=0.05)
-                try:
-                    token_max_frame = np.max(peaks)
-                except:
-                    pass
+                token_max_frame = np.argmax(token_attn_weight_unpadded)
                 start_end = token_dur_dict[keyword]
                 if (start_end[0] <= token_max_frame < start_end[1] or start_end[0] < token_max_frame <= start_end[1]):
                     y_true_loc.append(1)
                 else:
                     y_true_loc.append(0)
+            
             else:
                 y_true.append(0)
         y_score = keyword_sigmoid_mat[:, i_keyword][rank_order]
@@ -128,6 +130,7 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, f
             print("Keyword spotting localisation")
             print("Current P@10: {:.4f}".format(cur_p_at_10_loc))   
             print("Current P@N: {:.4f}".format(cur_p_at_n_loc))
+           
         # print(y_true)
     if analyze:
         print("-"*79)
@@ -141,7 +144,7 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, f
     p_at_10_loc = np.mean(p_at_10_loc)
     p_at_n_loc = np.mean(p_at_n_loc)
 
-    return p_at_10, p_at_n, eer, p_at_10_loc, p_at_n_loc     
+    return p_at_10, p_at_n, eer, p_at_10_loc, p_at_n_loc         
 
 def get_index(samples, utt_order):
     utt_to_index = {}
@@ -173,18 +176,10 @@ if __name__ == "__main__":
         VOCAB = data["VOCAB_soft"]
     else:
         print("Invalid target type")
-    
-    # Read keywords
-    # print("Reading:", keywords_8_fn)
-    keywords = []
-    with open(keywords_fn, "r") as f:
-        for line in f:
-            keywords.append(line.strip())
-    # print("Keywords:", keywords)
 
     token_counts = data["word_counts"]
     tokens = list(VOCAB.keys())
-    keyword_counts = dict([(i, token_counts[i]) for i in token_counts if i in keywords])
+    keyword_counts = dict([(i, token_counts[i]) for i in token_counts if i in VOCAB])
 
     # print(keyword_counts)
     samples = data["test"] # change to "test" later on
@@ -198,9 +193,10 @@ if __name__ == "__main__":
 
     # Get sigmoid matrix for keywords
     sigmoid_dict = {}
+    attention_weights_dict = {}
     label_dict = {}
-    frame_score_dict = {}
     target_dur_dict = {}
+
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
@@ -211,18 +207,23 @@ if __name__ == "__main__":
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
         input_length = torch.tensor([input_length]).to(device)
         with torch.no_grad():
-            out, frame_score = model(padded_input, input_length)
+            out, attention_weights = model(padded_input)
            
             sigmoid_out = torch.sigmoid(out)
-        sigmoid_dict[wave] = sigmoid_out.squeeze(0).cpu().numpy()
+        # print("sigmoid shape: ", sigmoid_out.shape)
+        # for j in range(sigmoid_out.shape[0]):
+        sigmoid_dict[wave] = sigmoid_out.cpu()
+        attention_weights_dict[wave] = attention_weights.squeeze(0)[:, :input_length].cpu().numpy()
         label_dict[wave] = gt_trn
-        frame_score_dict[wave] = torch.sigmoid(frame_score).squeeze(0)[:, :input_length].cpu().numpy()
         target_dur_dict[wave] = target_dur
+
+        # utterances[wave] = [gt_trn, target_dur]
 
     print("Evaluating model's performance on keyword spotting in one utterance")
     p_at_10, p_at_n, eer,  p_at_10_loc, p_at_n_loc = eval_kws(
-        sigmoid_dict, VOCAB, keyword_counts, label_dict, target_dur_dict, frame_score_dict, args.analyze
+        sigmoid_dict, VOCAB, keyword_counts, label_dict, target_dur_dict, attention_weights_dict, args.analyze
         )
+        
 
     print
     print("-"*79)
@@ -236,4 +237,4 @@ if __name__ == "__main__":
     print("-"*79)
 
 
-# python kws_psc.py --model_path 1621334318_psc_bow --target_type bow --analyze
+# python kws.py --model_path 1623513734_cnnattend_bow --target_type bow --analyze

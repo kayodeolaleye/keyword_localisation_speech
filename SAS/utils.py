@@ -301,12 +301,13 @@ def get_gt_token_duration(target_dur, valid_gt_trn):
                 token_dur.append((start_end, tok.casefold()))
             return token_dur
 
-def get_detection_metric_count(hyp_trn, gt_trn):
+def get_detection_metric_count(hyp_trn, gt_trn, VOCAB):
     # Get the number of true positive (n_tp), true positive + false positive (n_tp_fp) and true positive + false negative (n_tp_fn) for a one sample on the detection task
     correct_tokens = set([token for token in gt_trn if token in hyp_trn])
     n_tp = len(correct_tokens)
     n_tp_fp = len(hyp_trn)
-    n_tp_fn = len(set(gt_trn))
+    # n_tp_fn = len(set(gt_trn))
+    n_tp_fn = len([word for word in set(gt_trn) if word in VOCAB])
 
     return n_tp, n_tp_fp, n_tp_fn
 
@@ -355,3 +356,27 @@ def compute_cam(grad_cam, x, iVOCAB):
         #cam = np.broadcast_to(cam, (39, cam.shape[0]))
         cams_dict[token] = cam
     return cams_dict
+
+def eval_localisation_accuracy(hyp_loc, gt_loc):
+    score = 0
+    total = 0
+
+    for gt_start_end_frame, gt_token in gt_loc:
+        if gt_token not in [hyp_token for _, hyp_token in hyp_loc]:
+            total += 1
+    
+        if gt_token in [hyp_token for _, hyp_token in hyp_loc]:
+            total += 1
+        
+        for hyp_frame, hyp_token in hyp_loc:
+            if hyp_token == gt_token and (gt_start_end_frame[0] <= hyp_frame < gt_start_end_frame[1] or gt_start_end_frame[0] < hyp_frame <= gt_start_end_frame[1]):
+                score += 1
+
+    return score, total
+
+def get_token_dur_dict(target_dur):
+    token_dur_dict = {}
+    for start_end, dur, tok in target_dur:
+        token_dur_dict[tok.casefold()] = start_end
+
+    return token_dur_dict
