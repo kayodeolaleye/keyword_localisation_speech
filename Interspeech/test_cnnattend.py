@@ -64,6 +64,8 @@ if __name__ == "__main__":
     l_n_fp = 0
     l_n_fn = 0
 
+    pred = []
+
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
@@ -79,6 +81,8 @@ if __name__ == "__main__":
             out, attention_weights = model(padded_input)
             
             sigmoid_out = torch.sigmoid(out)
+
+        pred.append(sigmoid_out.squeeze(0).cpu())
         # print("sigmoid shape: ", sigmoid_out.shape)
         # Evaluating model's performance on detection of keywords in one utterance
         hyp_trn = [iVOCAB[i] for i in np.where(sigmoid_out.squeeze(0).cpu() >= args.test_threshold)[0]]
@@ -119,6 +123,10 @@ if __name__ == "__main__":
 
     # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
+
+    pred = np.vstack(pred)
+    outpath = f"output/pred-{args.model_path}-flickr8k-test.npy"
+    np.save(outpath, pred)
 
     # Print status
     print
