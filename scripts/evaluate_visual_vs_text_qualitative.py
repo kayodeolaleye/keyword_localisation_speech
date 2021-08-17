@@ -47,7 +47,11 @@ def plot_metrics(axs, true, pred):
     axs[1].set_xlabel("FPR")
     axs[1].set_ylabel("TPR")
 
-    return axs
+    metrics = {
+        "aupr": 100 * auc(recall, precision),
+        "auroc": 100 * auc(fpr, tpr),
+    }
+    return axs, metrics
 
 
 def show1(word, results):
@@ -60,10 +64,10 @@ def show1(word, results):
 
     # quantitative metrics
     fig, axs = plt.subplots(ncols=2, figsize=(5.5, 2.5), tight_layout=True)
-    plot_metrics(axs, true, pred)
+    axs, metrics = plot_metrics(axs, true1, pred1)
 
-    axs[0].set_title("AUPR: {:.1f}%".format(100 * auc(recall, precision)))
-    axs[1].set_title("AUROC: {:.1f}%".format(100 * auc(fpr, tpr)))
+    axs[0].set_title("AUPR: {:.1f}%".format(metrics["aupr"]))
+    axs[1].set_title("AUROC: {:.1f}%".format(metrics["auroc"]))
 
     col1, _ = st.beta_columns(2)
     col1.markdown("## Quantitative results")
