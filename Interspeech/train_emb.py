@@ -1,7 +1,8 @@
 # TODO
 # - [x] evaluate in terms of AUPR (or average precsision) at validation time
 # - [x] checkpoint the best model
-# - [ ] fix random seed
+# - [x] fix random seed
+# - [x] run training for `labels-text` and `labels-image-vgg` configurations
 # - [ ] write script to predict based on a model
 # - [ ] write script to extract CLIP features
 # - [ ] (optional) early stopping
@@ -50,10 +51,14 @@ HPARAMS: Dict[str, Any] = {
     "lr": 1e-4,
     "max-epochs": 100,
     "max-len-audio": 2048,
+    "seed": 42,
 }
 
 VOCAB_SIZE = 67
 EMBED_SIZE = 1000
+
+
+torch.manual_seed(HPARAMS["seed"])
 
 
 def pad_tensor(vec, pad, dim):
