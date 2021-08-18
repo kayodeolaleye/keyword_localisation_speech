@@ -56,6 +56,7 @@ HPARAMS: Dict[str, Any] = {
 
 VOCAB_SIZE = 67
 EMBED_SIZE = 1000
+OUTPUT_DIR = "trained_models"
 
 
 torch.manual_seed(HPARAMS["seed"])
@@ -72,6 +73,19 @@ def pad_collate(batch, dim=0):
     xs = torch.stack([pad_tensor(xy[0], max_len, dim) for xy in batch], dim=0)
     ys = torch.stack([xy[1] for xy in batch])
     return xs, ys
+
+
+def output_transform_network(output):
+    # Assume that the network:
+    # ⅰ. the network outputs extra information, which is discarded;
+    # ⅱ. the predictions correpsond to logits.
+    pred, _ = output
+    return torch.sigmoid(pred)
+
+
+def output_transform_metric(output_and_true):
+    output, true = output_and_true
+    return output_transform_network(output), true
 
 
 class LabelsImageVGGLoader:
@@ -215,17 +229,6 @@ def main(audio_model_name, teacher_model_name):
         "features": mse_loss,
     }
 
-    def output_transform_network(output):
-        # Assume that the network:
-        # ⅰ. the network outputs extra information, which is discarded;
-        # ⅱ. the predictions correpsond to logits.
-        pred, _ = output
-        return torch.sigmoid(pred)
-
-    def output_transform_metric(output_and_true):
-        output, true = output_and_true
-        return output_transform_network(output), true
-
     def my_criterion(output, target):
         return CRITERIA[target_type](output_transform_network(output), target)
 
@@ -264,7 +267,6 @@ def main(audio_model_name, teacher_model_name):
         )
 
     # Chekpoint
-    output_dir = "trained_models"
     prefix = "{}-{}".format(audio_model_name, teacher_model_name)
     checkpoint_handler = ModelCheckpoint(
         output_dir,
