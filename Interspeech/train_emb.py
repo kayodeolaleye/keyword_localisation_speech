@@ -235,8 +235,13 @@ def main(audio_model_name, teacher_model_name):
 
     valid_metrics: Dict[str, Metric] = {
         "loss": Loss(my_criterion),
-        "aupr": AveragePrecision(output_transform=output_transform_metric),
     }
+
+    if teacher_model_name == "labels-text":
+        valid_metrics["aupr"] = AveragePrecision(
+            output_transform=output_transform_metric
+        )
+
     evaluator = create_supervised_evaluator(
         model, metrics=valid_metrics, device=config.device
     )
@@ -254,9 +259,8 @@ def main(audio_model_name, teacher_model_name):
         evaluator.run(valid_loader)
         metrics = evaluator.state.metrics
         print(
-            "valid · epoch: {:4d} ◇ loss: {:7.4f} ◇ aupr: {:7.2f}%".format(
-                trainer.state.epoch, metrics["loss"], 100 * metrics["aupr"]
-            )
+            "valid · epoch: {:4d} ◇".format(trainer.state.epoch),
+            " ◇ ".join("{:s}: {:7.4f}".format(k, v) for k, v in metrics.items()),
         )
 
     # Chekpoint
@@ -267,7 +271,7 @@ def main(audio_model_name, teacher_model_name):
         prefix,
         n_saved=1,
         require_empty=False,
-        score_function=lambda engine: engine.state.metrics["aupr"],
+        score_function=lambda engine: -engine.state.metrics["loss"],
     )
     evaluator.add_event_handler(
         event_name=Events.EPOCH_COMPLETED,
