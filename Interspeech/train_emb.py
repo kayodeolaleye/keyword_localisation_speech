@@ -3,8 +3,9 @@
 # - [x] checkpoint the best model
 # - [x] fix random seed
 # - [x] run training for `labels-text` and `labels-image-vgg` configurations
-# - [ ] write script to predict based on a model
+# - [x] write script to predict based on a model
 # - [ ] write script to extract CLIP features
+# - [ ] train on CLIP features
 # - [ ] (optional) early stopping
 # - [ ] (optional) learning rate scheduler
 
