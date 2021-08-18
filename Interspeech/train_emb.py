@@ -175,7 +175,7 @@ def get_data_loaders(teacher_model_name, batch_size):
     valid_loader = DataLoader(
         Flickr8kDataset(split="dev", target_type=teacher_model_name, is_train=False),
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
         collate_fn=partial(pad_collate, dim=1),
     )
     return train_loader, valid_loader
