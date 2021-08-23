@@ -182,8 +182,8 @@ class LabelsTextLoader:
 
 
 class FeaturesImageCLIPLoader:
-    def __init__(self):
-        path = "output/features/clip-ViT-B-16.npz"
+    def __init__(self, base_path=""):
+        path = os.path.join(base_path, "output/features/clip-ViT-B-16.npz")
         data = np.load(path)
         self.name_to_index = {n: i for i, n in enumerate(data["samples"])}
         self.data = data["data"].astype(np.float32)
@@ -208,7 +208,26 @@ class Flickr8kDataset(Dataset):
         self.is_train = is_train
         self.load_target = TARGET_LOADERS[target_type]()
 
-    def load_samples(self, split: Split) -> List[str]:
+    @staticmethod
+    def load_transcripts():
+        file_transcript = os.path.join(config.flickr8k_trans_dir, "Flickr8k.token.txt")
+        return dict(load(file_transcript, parse_token))
+
+    @staticmethod
+    def get_audio_path(sample_name):
+        return os.path.join(config.flickr8k_audio_dir, "wavs", sample_name + ".wav")
+
+    @staticmethod
+    def get_image_path(sample_name):
+        return os.path.join(
+            config.BASE_DIR,
+            "flickr8k-images",
+            "Flicker8k_Dataset",
+            get_key_img(sample_name) + ".jpg",
+        )
+
+    @staticmethod
+    def load_samples(split: Split) -> List[str]:
         path_ctm = config.flickr8k_ctm_fn
         path_img = os.path.join(
             config.flickr8k_trans_dir, f"Flickr_8k.{split}Images.txt"
@@ -222,15 +241,11 @@ class Flickr8kDataset(Dataset):
         img_key_to_keys = {
             k: list(g) for k, g in groupby(sorted(keys), key=get_key_img)
         }
-        res = list(concat(img_key_to_keys[img_key] for img_key in img_keys))
-        return res
+        return list(concat(img_key_to_keys[img_key] for img_key in img_keys))
 
     def load_audio_features(self, sample_name):
-        audio_path = os.path.join(
-            config.flickr8k_audio_dir, "wavs", sample_name + ".wav"
-        )
         feature = extract_feature(
-            input_file=audio_path,
+            input_file=self.get_audio_path(sample_name),
             feature="mfcc",
             dim=13,
             cmvn=True,
