@@ -10,12 +10,16 @@
 # - [ ] resume from checkpoint
 # - [ ] AdamW
 # - [ ] weight decay, but not for biases
+# - [ ] validation in terms of word AUPR
 # - [ ] show running average of training error
+# - [ ] log results to wandb
+# - [ ] hyperparameter tunning
 
 import os
 import pdb
 import pickle
 import random
+import re
 
 from itertools import groupby
 from functools import partial
@@ -72,6 +76,7 @@ HPARAMS: Dict[str, Any] = {
     "num-warmup-steps": 1_000,
     "max-len-audio": 2048,
     "seed": 42,
+    "weight-decay": 0.01,
 }
 
 # Constants
@@ -434,7 +439,32 @@ def main(audio_model_name, teacher_model_name):
     model = AUDIO_MODELS[audio_model_name](OUT_DIM)
     model.to(config.device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=HPARAMS["lr"])
+    named_parameters = list(model.named_parameters())
+
+    def is_gain_or_bias(name):
+        subnames = name.split(".")
+        bn = re.compile("bn_[0-9]+")
+        ln = re.compile("ln_[0-9]+")
+        return any(
+            bn.match(s) or ln.match(s) or "bias" == s or "logit_scale" == s
+            for s in subnames
+        )
+
+    params_gain_or_bias = [
+        param
+        for name, param in named_parameters
+        if is_gain_or_bias(name) and param.requires_grad
+    ]
+    params_other = [
+        param
+        for name, param in named_parameters
+        if not is_gain_or_bias(name) and param.requires_grad
+    ]
+    group_params = [
+        {"params": params_gain_or_bias, "weight_decay": 0.0},
+        {"params": params_other, "weight_decay": HPARAMS["weight-decay"]},
+    ]
+    optimizer = torch.optim.AdamW(group_params, lr=HPARAMS["lr"])
 
     def prepare_batch(batch, device, non_blocking):
         inp_out = _prepare_batch(batch, device, non_blocking)
