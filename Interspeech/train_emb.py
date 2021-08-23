@@ -5,10 +5,12 @@
 # - [x] run training for `labels-text` and `labels-image-vgg` configurations
 # - [x] write script to predict based on a model
 # - [x] write script to extract CLIP features
-# - [ ] train on CLIP features
-# - [ ] write output transform function for CLIP
+# - [x] (optional) learning rate scheduler
+# - [x] train on CLIP features
 # - [ ] resume from checkpoint
-# - [ ] (optional) learning rate scheduler
+# - [ ] AdamW
+# - [ ] weight decay, but not for biases
+# - [ ] show running average of training error
 
 import os
 import pdb
