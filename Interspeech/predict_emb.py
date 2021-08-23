@@ -12,13 +12,14 @@ from toolz import first
 import clip
 
 import torch
+from torch.nn.functional import cross_entropy
 from torch.utils.data import DataLoader
 
 from ignite.handlers.stores import EpochOutputStore
 from ignite.contrib.metrics import AveragePrecision
 from ignite.contrib.handlers.tqdm_logger import ProgressBar
 from ignite.engine import Engine, Events, _prepare_batch, create_supervised_evaluator
-from ignite.metrics import Metric
+from ignite.metrics import Accuracy, Loss, Metric
 
 import config
 
@@ -36,6 +37,11 @@ from train_emb import (
 )
 
 
+TEACHER_MODEL_NAME = "features-image-clip"
+AUDIO_MODEL_NAME = "cnn-transformer"
+BATCH_SIZE = 64
+
+
 def load_model(audio_model_name, teacher_model_name):
     prefix = "{}-{}".format(audio_model_name, teacher_model_name)
     files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith(prefix)]
@@ -50,25 +56,62 @@ def load_model(audio_model_name, teacher_model_name):
     return model
 
 
-@click.command()
-@click.option(
-    "-a",
-    "--audio-model",
-    "audio_model_name",
-    required=True,
-    type=click.Choice(AUDIO_MODELS),
-)
-@click.option(
-    "-t",
-    "--teacher",
-    "teacher_model_name",
-    required=True,
-    type=click.Choice(TARGET_LOADERS),
-)
-def main(audio_model_name, teacher_model_name):
-    assert teacher_model_name == "features-image-clip" and audio_model_name == "cnn-transformer"
+def eval_batch():
+    # Perform the same type of evaluation as the one done at train time.
+    # Note that this evaluation depends on
+    # ⅰ. the batch size and
+    # ⅱ. whether the data is shuffled.
+    # The larger the batch size the more difficult it is to obtain good scores.
+    # If the data is shuffled it easier to obtain good scores.
+    dataset = Flickr8kDataset(
+        split="test", target_type="features-image-clip", is_train=False
+    )
 
-    BATCH_SIZE = 64
+    # On `drop_last` being true.
+    # Computing the accuracy needs the same number of classes.
+    # Since the number of classes is equal the batch size,
+    # we must ensure that all batches have # exactly the same number of samples.
+    # To do this, we drop the reminder of samples that do not fit in the whole number of `batch-size`.
+    loader = DataLoader(
+        dataset,
+        batch_size=HPARAMS["batch-size"],
+        shuffle=True,
+        collate_fn=partial(pad_collate, dim=1),
+        drop_last=True,
+    )
+
+    def prepare_batch(batch, device, non_blocking):
+        inp_out = _prepare_batch(batch, device, non_blocking)
+        indices = torch.arange(inp_out[0].shape[0]).to(config.device)
+        return inp_out, indices
+
+    def output_transform_acc(output):
+        pred, true = output
+        return pred.argmax(dim=0), true
+
+    metrics: Dict[str, Metric] = {
+        "loss": Loss(cross_entropy),
+        "accuracy": Accuracy(),
+    }
+
+    model = load_model(AUDIO_MODEL_NAME, TEACHER_MODEL_NAME)
+
+    evaluator = create_supervised_evaluator(
+        model,
+        metrics=metrics,
+        prepare_batch=prepare_batch,
+        device=config.device,
+    )
+
+    pbar = ProgressBar()
+    pbar.attach(evaluator)
+
+    evaluator.run(loader)
+    print(evaluator.state.metrics["loss"])
+    print(evaluator.state.metrics["accuracy"] * 100)
+
+
+def eval_full():
     dataset = Flickr8kDataset(split="test", target_type="labels-text", is_train=False)
     loader = DataLoader(
         dataset,
@@ -108,7 +151,7 @@ def main(audio_model_name, teacher_model_name):
     metrics: Dict[str, Metric] = {
         "aupr": AveragePrecision(output_transform_metric),
     }
-    model = load_model(audio_model_name, teacher_model_name)
+    model = load_model(AUDIO_MODEL_NAME, TEACHER_MODEL_NAME)
 
     evaluator = Engine(evaluate_step)
     for name, metric in metrics.items():
@@ -125,7 +168,7 @@ def main(audio_model_name, teacher_model_name):
     def save_results(engine):
         pred = np.vstack([output[0] for output in engine.state.output])
         true = np.vstack([output[1] for output in engine.state.output])
-        path = f"output/{audio_model_name}-{teacher_model_name}-flickr8k-test.npy"
+        path = f"output/{AUDIO_MODEL_NAME}-{TEACHER_MODEL_NAME}-flickr8k-test.npz"
         np.savez(path, pred=pred, true=true)
 
     @evaluator.on(Events.EPOCH_COMPLETED)
@@ -139,4 +182,4 @@ def main(audio_model_name, teacher_model_name):
 
 
 if __name__ == "__main__":
-    main()
+    eval_full()
