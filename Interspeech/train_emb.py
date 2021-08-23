@@ -44,7 +44,7 @@ from ignite.handlers import (
     create_lr_scheduler_with_warmup,
     CosineAnnealingScheduler,
 )
-from ignite.metrics import Loss, Metric
+from ignite.metrics import Accuracy, Loss, Metric
 
 import streamlit as st
 from matplotlib import pyplot as plt
@@ -268,6 +268,7 @@ def get_data_loaders(teacher_model_name, batch_size):
         batch_size=batch_size,
         shuffle=False,
         collate_fn=partial(pad_collate, dim=1),
+        drop_last=True,
     )
     return train_loader, valid_loader
 
@@ -435,6 +436,7 @@ def main(audio_model_name, teacher_model_name):
 
     validation_metrics: Dict[str, Metric] = {
         "loss": Loss(cross_entropy),
+        "accuracy": Accuracy(),
     }
 
     evaluator = create_supervised_evaluator(
