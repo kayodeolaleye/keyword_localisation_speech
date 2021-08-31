@@ -16,6 +16,7 @@
 # - [ ] validation in terms of word AUPR
 # - [ ] show running average of training error
 
+import json
 import os
 import pdb
 import pickle
@@ -56,6 +57,7 @@ import streamlit as st
 from matplotlib import pyplot as plt
 
 from toolz import compose, concat, first
+from toolz.dicttoolz import merge
 
 from clip.model import Transformer  # type: ignore
 
@@ -71,6 +73,8 @@ TeacherType = Literal["labels-image-vgg", "labels-text", "features-image-clip"]
 
 # Hyper-parameters
 HPARAMS: Dict[str, Any] = {
+    "audio-model-name": "cnn-transformer",
+    "teacher-model-name": "features-image-clip",
     "batch-size": 64,
     "lr": 4 * 1e-4,
     "num-gradient-updates": 25_000,
@@ -88,11 +92,6 @@ OUTPUT_DIR = "trained_models"
 
 LOG_TRAIN_FREQ = 16
 LOG_VALID_FREQ = 256
-
-# Fix random seed
-random.seed(HPARAMS["seed"])
-np.random.seed(HPARAMS["seed"])
-torch.manual_seed(HPARAMS["seed"])
 
 
 @dataclass
@@ -361,48 +360,32 @@ def cross_entropy_symmetric(logits, indices):
     return (loss1 + loss2) / 2
 
 
-def get_mutual_information(loss):
+def get_mutual_information(loss, batch_size):
     # From the InfoNCE paper we know that the loss lower-bounds the mutual
     # information, that is I(X; Y) ≥ log(N) - L. This function reports the
     # lower-bound and is useful for comparing models with various batch
     # sizes.
-    return np.log(HPARAMS["batch-size"]) - loss
+    return np.log(batch_size) - loss
 
 
-@click.command()
-@click.option(
-    "-a",
-    "--audio-model",
-    "audio_model_name",
-    required=True,
-    type=click.Choice(AUDIO_MODELS),
-)
-@click.option(
-    "-t",
-    "--teacher",
-    "teacher_model_name",
-    required=True,
-    type=click.Choice(TARGET_LOADERS),
-)
-@click.option(
-    "--checkpoint",
-    "checkpoint_path",
-    type=click.Path(exists=True),
-)
-def main(audio_model_name, teacher_model_name, checkpoint_path=None):
+def train(hparams):
+    # Fix random seed
+    random.seed(hparams["seed"])
+    np.random.seed(hparams["seed"])
+    torch.manual_seed(hparams["seed"])
 
-    target_type, *_ = teacher_model_name.split("-")
+    target_type, *_ = hparams["teacher-model-name"].split("-")
 
     train_loader, valid_loader = get_data_loaders(
-        teacher_model_name,
-        HPARAMS["batch-size"],
+        hparams["teacher-model-name"],
+        hparams["batch-size"],
     )
 
-    model = AUDIO_MODELS[audio_model_name](OUT_DIM)
+    model = AUDIO_MODELS[hparams["audio-model-name"]](OUT_DIM)
     model.to(config.device)
 
-    if checkpoint_path:
-        checkpoint = torch.load(checkpoint_path)
+    if hparams.get("checkpoint-path"):
+        checkpoint = torch.load(hparams["checkpoint-path"])
         model.load_state_dict(checkpoint["model"])
 
     named_parameters = list(model.named_parameters())
@@ -428,14 +411,16 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
     ]
     group_params = [
         {"params": params_gain_or_bias, "weight_decay": 0.0},
-        {"params": params_other, "weight_decay": HPARAMS["weight-decay"]},
+        {"params": params_other, "weight_decay": hparams["weight-decay"]},
     ]
-    optimizer = torch.optim.AdamW(group_params, lr=HPARAMS["lr"])
+    optimizer = torch.optim.AdamW(group_params, lr=hparams["lr"])
 
     def prepare_batch(batch, device, non_blocking):
         inp_out = _prepare_batch(batch, device, non_blocking)
-        indices = torch.arange(inp_out[0].shape[0]).to(config.device)
+        indices = torch.arange(len(inp_out[0])).to(config.device)
         return inp_out, indices
+
+    mi = partial(get_mutual_information, batch_size=hparams["batch-size"])
 
     trainer = create_supervised_trainer(
         model,
@@ -463,7 +448,7 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
             "train · step: {:5d} ◇ loss: {:7.4f} · MI: {:7.4f}".format(
                 trainer.state.iteration,
                 trainer.state.output,
-                get_mutual_information(trainer.state.output),
+                mi(trainer.state.output),
             )
         )
 
@@ -475,21 +460,20 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
             "valid · step: {:5d} ◇ loss: {:7.4f} · MI: {:7.4f} · accuracy: {:.2f}".format(
                 trainer.state.iteration,
                 metrics["loss"],
-                get_mutual_information(metrics["loss"]),
+                mi(metrics["loss"]),
                 100 * metrics["accuracy"],
             ),
         )
 
     # Chekpoint
-    prefix = "{}-{}".format(audio_model_name, teacher_model_name)
+    output_dir = os.path.join(OUTPUT_DIR, hparams.get("name", ""))
+    prefix = "{}-{}".format(hparams["audio-model-name"], hparams["teacher-model-name"])
     checkpoint_handler = ModelCheckpoint(
-        OUTPUT_DIR,
+        output_dir,
         prefix,
         n_saved=5,
         require_empty=False,
-        score_function=lambda engine: get_mutual_information(
-            engine.state.metrics["loss"]
-        ),
+        score_function=lambda engine: mi(engine.state.metrics["loss"]),
     )
     evaluator.add_event_handler(
         event_name=Events.EPOCH_COMPLETED,
@@ -500,7 +484,7 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
         },
     )
 
-    cycle_size = HPARAMS["num-gradient-updates"] - HPARAMS["num-warmup-steps"] + 1
+    cycle_size = hparams["num-gradient-updates"] - hparams["num-warmup-steps"] + 1
     scheduler_cosine = CosineAnnealingScheduler(
         optimizer,
         "lr",
@@ -508,12 +492,12 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
         end_value=0,
         cycle_size=cycle_size,
     )
-    lr_values = [None] * HPARAMS["num-gradient-updates"]
+    lr_values = [None] * hparams["num-gradient-updates"]
     scheduler_cosine_warmup = create_lr_scheduler_with_warmup(
         scheduler_cosine,
         warmup_start_value=0.0,
-        warmup_end_value=HPARAMS["lr"],
-        warmup_duration=HPARAMS["num-warmup-steps"],
+        warmup_end_value=hparams["lr"],
+        warmup_duration=hparams["num-warmup-steps"],
         output_simulated_values=lr_values,
     )
 
@@ -527,8 +511,25 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
     trainer.add_event_handler(Events.ITERATION_STARTED, scheduler_cosine_warmup)
 
     num_batches = len(train_loader)  # number of gradient updates per epoch
-    max_epochs = int(HPARAMS["num-gradient-updates"] / num_batches)
+    max_epochs = int(hparams["num-gradient-updates"] / num_batches)
     trainer.run(train_loader, max_epochs=max_epochs)
+
+    return mi(evaluator.state.metrics["loss"])
+
+
+@click.command()
+@click.option("--config", "config_name")
+def main(config_name=None):
+    config_path = config_name and os.path.join("config-files", config_name + ".json")
+    if config_path and os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        config["name"] = config_name
+    else:
+        config = {}
+    hparams = merge(HPARAMS, config)
+    print(json.dumps(hparams, indent=4))
+    train(hparams)
 
 
 if __name__ == "__main__":
