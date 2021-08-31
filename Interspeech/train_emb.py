@@ -7,13 +7,14 @@
 # - [x] write script to extract CLIP features
 # - [x] (optional) learning rate scheduler
 # - [x] train on CLIP features
-# - [ ] resume from checkpoint
-# - [ ] AdamW
-# - [ ] weight decay, but not for biases
+# - [x] resume from checkpoint
+# - [x] AdamW
+# - [x] weight decay, but not for biases
+# - [x] symmetric loss: match audio to images and images to audio
+# - [ ] hyperparameter tunning
+# - [ ] log results to wandb
 # - [ ] validation in terms of word AUPR
 # - [ ] show running average of training error
-# - [ ] log results to wandb
-# - [ ] hyperparameter tunning
 
 import os
 import pdb
