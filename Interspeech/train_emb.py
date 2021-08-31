@@ -103,6 +103,7 @@ class KeyImage:
         assert 0 <= i < 5
         return KeyAudio(self.value + "_" + str(i))
 
+
 @dataclass
 class KeyAudio:
     value: str
@@ -224,7 +225,9 @@ class FeaturesImageCLIPLoader:
 
 class FeaturesAudioCLIPLoader:
     def __init__(self, base_path=""):
-        path = os.path.join(base_path, "output/cnn-transformer-features-image-clip-flickr8k-test.npz")
+        path = os.path.join(
+            base_path, "output/cnn-transformer-features-image-clip-flickr8k-test.npz"
+        )
         data = np.load(path)
         samples = [s.value for s in Flickr8kDataset.load_samples("test")]
         self.name_to_index = {n: i for i, n in enumerate(samples)}
@@ -268,7 +271,9 @@ class Flickr8kDataset(Dataset):
 
     @staticmethod
     def get_audio_path(sample_name: KeyAudio):
-        return os.path.join(config.flickr8k_audio_dir, "wavs", sample_name.value + ".wav")
+        return os.path.join(
+            config.flickr8k_audio_dir, "wavs", sample_name.value + ".wav"
+        )
 
     @staticmethod
     def get_image_path(sample_name: Union[KeyAudio, KeyImage]):
