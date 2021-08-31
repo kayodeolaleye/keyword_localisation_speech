@@ -21,10 +21,11 @@ import pickle
 import random
 import re
 
+from dataclasses import dataclass
 from itertools import groupby
 from functools import partial
 
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Union
 
 import click  # type: ignore
 
@@ -55,11 +56,10 @@ from matplotlib import pyplot as plt
 
 from toolz import compose, concat, first
 
-from clip.model import Transformer
+from clip.model import Transformer  # type: ignore
 
 import config
 from data_gen import spec_augment
-from models import MODELS as AUDIO_MODELS
 from utils import extract_feature, get_soft_tags, get_keywords, get_tran_dict
 from scripts.data import get_key_img, load, parse_token
 
@@ -92,6 +92,25 @@ LOG_VALID_FREQ = 256
 random.seed(HPARAMS["seed"])
 np.random.seed(HPARAMS["seed"])
 torch.manual_seed(HPARAMS["seed"])
+
+
+@dataclass
+class KeyImage:
+    value: str
+
+    def to_key_audio(self, i: int) -> "KeyAudio":
+        assert 0 <= i < 5
+        return KeyAudio(self.value + "_" + str(i))
+
+@dataclass
+class KeyAudio:
+    value: str
+
+    def to_key_image(self) -> KeyImage:
+        return KeyImage(get_key_img(self.value))
+
+
+Key = Union[KeyImage, KeyAudio]
 
 
 class CNNTransformer(torch.nn.Module):
@@ -177,8 +196,8 @@ class LabelsTextLoader:
             self.tran_dict = pickle.load(f)
         self.vocab = get_keywords(config.keywords_fn)
 
-    def __call__(self, sample_name):
-        words = self.tran_dict[sample_name]
+    def __call__(self, sample_name: KeyAudio):
+        words = self.tran_dict[sample_name.value]
         bow_vector = np.zeros(len(self.vocab)).astype("float32")
         for word in words:
             if word in self.vocab:
@@ -219,20 +238,29 @@ class Flickr8kDataset(Dataset):
         return dict(load(file_transcript, parse_token))
 
     @staticmethod
-    def get_audio_path(sample_name):
-        return os.path.join(config.flickr8k_audio_dir, "wavs", sample_name + ".wav")
+    def get_audio_path(sample_name: KeyAudio):
+        return os.path.join(config.flickr8k_audio_dir, "wavs", sample_name.value + ".wav")
 
     @staticmethod
-    def get_image_path(sample_name):
+    def get_image_path(sample_name: Union[KeyAudio, KeyImage]):
+        if isinstance(sample_name, KeyAudio):
+            key = sample_name.to_key_image().value
+        elif isinstance(sample_name, KeyImage):
+            key = sample_name.value
         return os.path.join(
             config.BASE_DIR,
             "flickr8k-images",
             "Flicker8k_Dataset",
-            get_key_img(sample_name) + ".jpg",
+            key + ".jpg",
         )
 
     @staticmethod
-    def load_samples(split: Split) -> List[str]:
+    def load_samples_all():
+        splits: List[Split] = ["train", "dev", "test"]
+        return list(concat(Flickr8kDataset.load_samples(s) for s in splits))
+
+    @staticmethod
+    def load_samples(split: Split) -> List[KeyAudio]:
         path_ctm = config.flickr8k_ctm_fn
         path_img = os.path.join(
             config.flickr8k_trans_dir, f"Flickr_8k.{split}Images.txt"
@@ -244,7 +272,7 @@ class Flickr8kDataset(Dataset):
         keys = list(set(map(first, load(path_ctm, parse_token))))
 
         img_key_to_keys = {
-            k: list(g) for k, g in groupby(sorted(keys), key=get_key_img)
+            k: list(map(KeyAudio, g)) for k, g in groupby(sorted(keys), key=get_key_img)
         }
         return list(concat(img_key_to_keys[img_key] for img_key in img_keys))
 
