@@ -212,9 +212,15 @@ class FeaturesImageCLIPLoader:
         self.name_to_index = {n: i for i, n in enumerate(data["samples"])}
         self.data = data["data"].astype(np.float32)
 
-    def __call__(self, sample_name):
-        key_img = get_key_img(sample_name)
-        index = self.name_to_index[key_img]
+    def __call__(self, sample_name: Union[KeyAudio, KeyImage]):
+        if isinstance(sample_name, KeyAudio):
+            key = sample_name.to_key_image().value
+        elif isinstance(sample_name, KeyImage):
+            key = sample_name.value
+        index = self.name_to_index[key]
+        return self.data[index]
+
+
         return self.data[index]
 
 
