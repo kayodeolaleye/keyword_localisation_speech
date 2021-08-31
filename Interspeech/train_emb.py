@@ -355,6 +355,20 @@ def get_data_loaders(teacher_model_name, batch_size):
     return train_loader, valid_loader
 
 
+def cross_entropy_symmetric(logits, indices):
+    loss1 = cross_entropy(logits, indices)
+    loss2 = cross_entropy(logits.T, indices)
+    return (loss1 + loss2) / 2
+
+
+def get_mutual_information(loss):
+    # From the InfoNCE paper we know that the loss lower-bounds the mutual
+    # information, that is I(X; Y) ≥ log(N) - L. This function reports the
+    # lower-bound and is useful for comparing models with various batch
+    # sizes.
+    return np.log(HPARAMS["batch-size"]) - loss
+
+
 # @click.command()
 # @click.option(
 #     "-a",
@@ -545,13 +559,13 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
     trainer = create_supervised_trainer(
         model,
         optimizer,
-        cross_entropy,
+        cross_entropy_symmetric,
         prepare_batch=prepare_batch,
         device=config.device,
     )
 
     validation_metrics: Dict[str, Metric] = {
-        "loss": Loss(cross_entropy),
+        "loss": Loss(cross_entropy_symmetric),
         "accuracy": Accuracy(),
     }
 
@@ -565,8 +579,10 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
     @trainer.on(Events.ITERATION_COMPLETED(every=LOG_TRAIN_FREQ))
     def log_training_loss(trainer):
         print(
-            "train · step: {:5d} ◇ loss: {:7.4f}".format(
-                trainer.state.iteration, trainer.state.output
+            "train · step: {:5d} ◇ loss: {:7.4f} · MI: {:7.4f}".format(
+                trainer.state.iteration,
+                trainer.state.output,
+                get_mutual_information(trainer.state.output),
             )
         )
 
@@ -575,8 +591,12 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
         evaluator.run(valid_loader)
         metrics = evaluator.state.metrics
         print(
-            "valid · step: {:5d} ◇".format(trainer.state.iteration),
-            " ◇ ".join("{:s}: {:7.4f}".format(k, v) for k, v in metrics.items()),
+            "valid · step: {:5d} ◇ loss: {:7.4f} · MI: {:7.4f} · accuracy: {:.2f}".format(
+                trainer.state.iteration,
+                metrics["loss"],
+                get_mutual_information(metrics["loss"]),
+                100 * metrics["accuracy"],
+            ),
         )
 
     # Chekpoint
@@ -584,9 +604,11 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
     checkpoint_handler = ModelCheckpoint(
         OUTPUT_DIR,
         prefix,
-        n_saved=1,
+        n_saved=5,
         require_empty=False,
-        score_function=lambda engine: -engine.state.metrics["loss"],
+        score_function=lambda engine: get_mutual_information(
+            engine.state.metrics["loss"]
+        ),
     )
     evaluator.add_event_handler(
         event_name=Events.EPOCH_COMPLETED,

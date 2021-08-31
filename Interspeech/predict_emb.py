@@ -33,6 +33,8 @@ from train_emb import (
     VOCAB_SIZE,
     Flickr8kDataset,
     # output_transform_metric,
+    cross_entropy_symmetric,
+    get_mutual_information,
     pad_collate,
 )
 
@@ -93,7 +95,7 @@ def eval_batch(model):
         return pred.argmax(dim=0), true
 
     metrics: Dict[str, Metric] = {
-        "loss": Loss(cross_entropy),
+        "loss": Loss(cross_entropy_symmetric),
         "accuracy": Accuracy(),
     }
 
@@ -108,8 +110,11 @@ def eval_batch(model):
     pbar.attach(evaluator)
 
     evaluator.run(loader)
-    print("loss:     {:6.3f} ".format(evaluator.state.metrics["loss"]))
-    print("accuracy: {:6.3f}%".format(evaluator.state.metrics["accuracy"] * 100))
+    metrics = evaluator.state.metrics
+    print("loss:               {:6.3f} ".format(metrics["loss"]))
+    print("mutual information: {:6.3f} ".format(get_mutual_information(metrics["loss"])))
+    print("accuracy:           {:6.3f}%".format(metrics["accuracy"] * 100))
+    print()
 
 
 def eval_keyword_spotting(model, to_store_predictions=False):
