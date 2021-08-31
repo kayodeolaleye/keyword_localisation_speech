@@ -427,7 +427,12 @@ def get_data_loaders(teacher_model_name, batch_size):
     required=True,
     type=click.Choice(TARGET_LOADERS),
 )
-def main(audio_model_name, teacher_model_name):
+@click.option(
+    "--checkpoint",
+    "checkpoint_path",
+    type=click.Path(exists=True),
+)
+def main(audio_model_name, teacher_model_name, checkpoint_path=None):
 
     target_type, *_ = teacher_model_name.split("-")
 
@@ -438,6 +443,10 @@ def main(audio_model_name, teacher_model_name):
 
     model = AUDIO_MODELS[audio_model_name](OUT_DIM)
     model.to(config.device)
+
+    if checkpoint_path:
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint["model"])
 
     named_parameters = list(model.named_parameters())
 
