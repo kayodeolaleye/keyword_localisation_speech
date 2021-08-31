@@ -70,7 +70,7 @@ TeacherType = Literal["labels-image-vgg", "labels-text", "features-image-clip"]
 
 # Hyper-parameters
 HPARAMS: Dict[str, Any] = {
-    "batch-size": 32,
+    "batch-size": 64,
     "lr": 4 * 1e-4,
     "num-gradient-updates": 25_000,
     "num-warmup-steps": 1_000,
@@ -314,7 +314,7 @@ def get_data_loaders(teacher_model_name, batch_size):
     valid_loader = DataLoader(
         Flickr8kDataset(split="dev", target_type=teacher_model_name, is_train=False),
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
         drop_last=True,
     )
