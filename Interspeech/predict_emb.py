@@ -42,21 +42,24 @@ AUDIO_MODEL_NAME = "cnn-transformer"
 BATCH_SIZE = 64
 
 
-def load_model(audio_model_name, teacher_model_name):
+def get_model_path(audio_model_name, teacher_model_name):
     prefix = "{}-{}".format(audio_model_name, teacher_model_name)
     files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith(prefix)]
     # assert len(files) == 1
 
-    path = os.path.join(OUTPUT_DIR, first(files))
+    selected_file = first(files)
+    path = os.path.join(OUTPUT_DIR, selected_file)
+    return path
 
+
+def load_model(audio_model_name, model_path):
     model = AUDIO_MODELS[audio_model_name](OUT_DIM)
-    model.load_state_dict(torch.load(path)["model"])
+    model.load_state_dict(torch.load(model_path)["model"])
     model.to(config.device)
-
     return model
 
 
-def eval_batch():
+def eval_batch(model):
     # Perform the same type of evaluation as the one done at train time.
     # Note that this evaluation depends on
     # ⅰ. the batch size and
@@ -94,8 +97,6 @@ def eval_batch():
         "accuracy": Accuracy(),
     }
 
-    model = load_model(AUDIO_MODEL_NAME, TEACHER_MODEL_NAME)
-
     evaluator = create_supervised_evaluator(
         model,
         metrics=metrics,
@@ -107,11 +108,11 @@ def eval_batch():
     pbar.attach(evaluator)
 
     evaluator.run(loader)
-    print(evaluator.state.metrics["loss"])
-    print(evaluator.state.metrics["accuracy"] * 100)
+    print("loss:     {:6.3f} ".format(evaluator.state.metrics["loss"]))
+    print("accuracy: {:6.3f}%".format(evaluator.state.metrics["accuracy"] * 100))
 
 
-def eval_full():
+def eval_keyword_spotting(model, to_store_predictions=False):
     dataset = Flickr8kDataset(split="test", target_type="labels-text", is_train=False)
     loader = DataLoader(
         dataset,
@@ -151,7 +152,6 @@ def eval_full():
     metrics: Dict[str, Metric] = {
         "aupr": AveragePrecision(output_transform_metric),
     }
-    model = load_model(AUDIO_MODEL_NAME, TEACHER_MODEL_NAME)
 
     evaluator = Engine(evaluate_step)
     for name, metric in metrics.items():
@@ -161,19 +161,20 @@ def eval_full():
         _, true, pred = inp_true_pred
         return pred.cpu().numpy(), true.cpu().numpy()
 
-    eos = EpochOutputStore(output_transform)
-    eos.attach(evaluator, "output")
+    if to_store_predictions:
+        eos = EpochOutputStore(output_transform)
+        eos.attach(evaluator, "output")
 
-    @evaluator.on(Events.EPOCH_COMPLETED)
-    def save_results(engine):
-        pred = np.vstack([output[0] for output in engine.state.output])
-        true = np.vstack([output[1] for output in engine.state.output])
-        path = f"output/{AUDIO_MODEL_NAME}-{TEACHER_MODEL_NAME}-flickr8k-test.npz"
-        np.savez(path, pred=pred, true=true)
+        @evaluator.on(Events.EPOCH_COMPLETED)
+        def save_results(engine):
+            pred = np.vstack([output[0] for output in engine.state.output])
+            true = np.vstack([output[1] for output in engine.state.output])
+            path = f"output/{AUDIO_MODEL_NAME}-{TEACHER_MODEL_NAME}-flickr8k-test.npz"
+            np.savez(path, pred=pred, true=true)
 
     @evaluator.on(Events.EPOCH_COMPLETED)
     def print_eval(engine):
-        print("aupr: {:.2f}%".format(100 * engine.state.metrics["aupr"]))
+        print("aupr:      {:.2f}%".format(100 * engine.state.metrics["aupr"]))
 
     pbar = ProgressBar()
     pbar.attach(evaluator)
@@ -181,5 +182,16 @@ def eval_full():
     evaluator.run(loader)
 
 
+@click.command()
+@click.option("--model", "model_path", type=click.Path(exists=True))
+@click.option("--to-store", "to_store_predictions", is_flag=True)
+def main(model_path=None, to_store_predictions=False):
+    if not model_path:
+        model_path = get_model_path(AUDIO_MODEL_NAME, TEACHER_MODEL_NAME)
+    model = load_model(AUDIO_MODEL_NAME, model_path)
+    eval_batch(model)
+    eval_keyword_spotting(model, to_store_predictions)
+
+
 if __name__ == "__main__":
-    eval_full()
+    main()
