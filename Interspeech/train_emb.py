@@ -369,125 +369,6 @@ def get_mutual_information(loss):
     return np.log(HPARAMS["batch-size"]) - loss
 
 
-# @click.command()
-# @click.option(
-#     "-a",
-#     "--audio-model",
-#     "audio_model_name",
-#     required=True,
-#     type=click.Choice(AUDIO_MODELS),
-# )
-# @click.option(
-#     "-t",
-#     "--teacher",
-#     "teacher_model_name",
-#     required=True,
-#     type=click.Choice(TARGET_LOADERS),
-# )
-# def main(audio_model_name, teacher_model_name):
-#
-#     target_type, *_ = teacher_model_name.split("-")
-#
-#     train_loader, valid_loader = get_data_loaders(
-#         teacher_model_name,
-#         HPARAMS["batch-size"],
-#     )
-#
-#     if target_type == "features":
-#         VOCAB_SIZE = 512
-#     else:
-#         VOCAB_SIZE = 67
-#
-#     model = AUDIO_MODELS[audio_model_name](VOCAB_SIZE, EMBED_SIZE)
-#     model.to(config.device)
-#
-#     # if teacher_model_name == "features-image-clip":
-#     #     model.τ = torch.nn.Parameter(1.0)
-#
-#     optimizer = torch.optim.Adam(model.parameters(), lr=HPARAMS["lr"])
-#
-#     def batch_cross_entropy(output, target):
-#         audio_features = output / output.norm(dim=-1, keepdim=True)
-#         image_features = target / target.norm(dim=-1, keepdim=True)
-#         logits = audio_features @ image_features.T
-#         batch_size, _ = output.shape
-#         batch_idxs = torch.arange(batch_size).to(config.device)
-#         # print(torch.softmax(logits, dim=0))
-#         return cross_entropy(logits, batch_idxs)
-#
-#     CRITERIA = {
-#         "labels": binary_cross_entropy,
-#         "features": batch_cross_entropy,
-#     }
-#
-#     def my_criterion(output, target):
-#         return CRITERIA[target_type](output[0], target)
-#         # return CRITERIA[target_type](output_transform_network(output), target)
-#
-#     trainer = create_supervised_trainer(
-#         model, optimizer, my_criterion, device=config.device
-#     )
-#
-#     valid_metrics: Dict[str, Metric] = {
-#         "loss": Loss(my_criterion),
-#     }
-#
-#    def output_transform_network(output):
-#        # Assume that the network:
-#        # ⅰ. the network outputs extra information, which is discarded;
-#        # ⅱ. the predictions correpsond to logits.
-#        pred, _ = output
-#        return torch.sigmoid(pred)
-#
-#
-#    def output_transform_metric(output_and_true):
-#        output, true = output_and_true
-#        return output_transform_network(output), true
-#
-#     if teacher_model_name == "labels-text":
-#         valid_metrics["aupr"] = AveragePrecision(
-#             output_transform=output_transform_metric
-#         )
-#
-#     evaluator = create_supervised_evaluator(
-#         model, metrics=valid_metrics, device=config.device
-#     )
-#
-#     @trainer.on(Events.ITERATION_COMPLETED(every=config.print_freq))
-#     def log_training_loss(trainer):
-#         print(
-#             "train · epoch: {:4d} ◇ loss: {:7.4f}".format(
-#                 trainer.state.epoch, trainer.state.output
-#             )
-#         )
-#
-#     @trainer.on(Events.EPOCH_COMPLETED)
-#     def log_validation_results(trainer):
-#         evaluator.run(valid_loader)
-#         metrics = evaluator.state.metrics
-#         print(
-#             "valid · epoch: {:4d} ◇".format(trainer.state.epoch),
-#             " ◇ ".join("{:s}: {:7.4f}".format(k, v) for k, v in metrics.items()),
-#         )
-#
-#     # Chekpoint
-#     prefix = "{}-{}".format(audio_model_name, teacher_model_name)
-#     checkpoint_handler = ModelCheckpoint(
-#         OUTPUT_DIR,
-#         prefix,
-#         n_saved=1,
-#         require_empty=False,
-#         score_function=lambda engine: -engine.state.metrics["loss"],
-#     )
-#     evaluator.add_event_handler(
-#         event_name=Events.EPOCH_COMPLETED,
-#         handler=checkpoint_handler,
-#         to_save={"model": model},
-#     )
-#
-#     trainer.run(train_loader, max_epochs=HPARAMS["max-epochs"])
-
-
 @click.command()
 @click.option(
     "-a",
@@ -636,7 +517,7 @@ def main(audio_model_name, teacher_model_name, checkpoint_path=None):
         output_simulated_values=lr_values,
     )
 
-    # Plot simulated values
+    # Plot simulated learning rates
     # lr_values = np.array(lr_values)
     # fig, ax = plt.subplots()
     # ax.plot(lr_values[:, 0], lr_values[:, 1], label="learning rate")
