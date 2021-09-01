@@ -11,10 +11,11 @@
 # - [x] AdamW
 # - [x] weight decay, but not for biases
 # - [x] symmetric loss: match audio to images and images to audio
+# - [x] log results to wandb
 # - [ ] hyperparameter tunning
-# - [ ] log results to wandb
 # - [ ] validation in terms of word AUPR
 # - [ ] show running average of training error
+# - [ ] ensemble models
 
 import json
 import os
@@ -26,7 +27,7 @@ import re
 from dataclasses import dataclass
 from itertools import groupby
 from functools import partial
-
+from socket import gethostname
 from typing import Any, Dict, List, Literal, Union
 
 import click  # type: ignore
@@ -40,6 +41,7 @@ from torch.nn.functional import binary_cross_entropy, cross_entropy, mse_loss
 from torch.utils.data import DataLoader, Dataset
 
 from ignite.contrib.metrics import AveragePrecision
+from ignite.contrib.handlers.wandb_logger import WandBLogger
 from ignite.engine import (
     Events,
     create_supervised_trainer,
@@ -52,6 +54,7 @@ from ignite.handlers import (
     CosineAnnealingScheduler,
 )
 from ignite.metrics import Accuracy, Loss, Metric
+from ignite.metrics.metrics_lambda import MetricsLambda
 
 import streamlit as st
 from matplotlib import pyplot as plt
@@ -73,6 +76,7 @@ TeacherType = Literal["labels-image-vgg", "labels-text", "features-image-clip"]
 
 # Hyper-parameters
 HPARAMS: Dict[str, Any] = {
+    "name": "{:032x}".format(random.getrandbits(128)),
     "audio-model-name": "cnn-transformer",
     "teacher-model-name": "features-image-clip",
     "batch-size": 64,
@@ -82,6 +86,7 @@ HPARAMS: Dict[str, Any] = {
     "max-len-audio": 2048,
     "seed": 42,
     "weight-decay": 0.01,
+    "log-wandb": True,
 }
 
 # Constants
@@ -430,9 +435,12 @@ def train(hparams):
         device=config.device,
     )
 
+    loss = Loss(cross_entropy_symmetric)
+    accuracy = Accuracy()
     validation_metrics: Dict[str, Metric] = {
-        "loss": Loss(cross_entropy_symmetric),
-        "accuracy": Accuracy(),
+        "loss": loss,
+        "accuracy": MetricsLambda(lambda x: 100 * x, accuracy),
+        "mutual-information": MetricsLambda(mi, loss),
     }
 
     evaluator = create_supervised_evaluator(
@@ -460,8 +468,8 @@ def train(hparams):
             "valid · step: {:5d} ◇ loss: {:7.4f} · MI: {:7.4f} · accuracy: {:.2f}".format(
                 trainer.state.iteration,
                 metrics["loss"],
-                mi(metrics["loss"]),
-                100 * metrics["accuracy"],
+                metrics["mutual-information"],
+                metrics["accuracy"],
             ),
         )
 
@@ -473,7 +481,7 @@ def train(hparams):
         prefix,
         n_saved=5,
         require_empty=False,
-        score_function=lambda engine: mi(engine.state.metrics["loss"]),
+        score_function=lambda engine: engine.state.metrics["mutual-information"],
     )
     evaluator.add_event_handler(
         event_name=Events.EPOCH_COMPLETED,
@@ -510,11 +518,39 @@ def train(hparams):
 
     trainer.add_event_handler(Events.ITERATION_STARTED, scheduler_cosine_warmup)
 
+    if hparams["log-wandb"]:
+        wandb_logger = WandBLogger(
+            project="kayode-train-audio-embedding",
+            name=hparams["name"],
+            config=hparams,
+            tags=["flickr8k", "clip", "embdding", "machine:" + gethostname()],
+        )
+
+        wandb_logger.attach_output_handler(
+            trainer,
+            event_name=Events.ITERATION_COMPLETED(every=LOG_TRAIN_FREQ),
+            tag="training",
+            output_transform=lambda loss: {"loss": loss, "mutual-information": mi(loss)},
+        )
+
+        wandb_logger.attach_output_handler(
+            evaluator,
+            event_name=Events.EPOCH_COMPLETED,
+            tag="validation",
+            metric_names=["loss", "mutual-information", "accuracy"],
+            global_step_transform=lambda *_: trainer.state.iteration,
+        )
+
+        wandb_logger.attach_opt_params_handler(
+            trainer, event_name=Events.ITERATION_STARTED, optimizer=optimizer
+        )
+
     num_batches = len(train_loader)  # number of gradient updates per epoch
     max_epochs = int(hparams["num-gradient-updates"] / num_batches)
     trainer.run(train_loader, max_epochs=max_epochs)
 
-    return mi(evaluator.state.metrics["loss"])
+    wandb_logger.close()
+    return evaluator.state.metrics["mutual-information"]
 
 
 @click.command()
