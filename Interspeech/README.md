@@ -1,9 +1,9 @@
 ## Attention-Based Keyword Localisation in Speech using Visual Grounding
 
-    @article{olaleye2021,
+    @inproceedings{olaleye2021,
     title={Attention-Based Keyword Localisation in Speech using Visual Grounding},
     author={Olaleye, Kayode and Kamper, Herman},
-    journal={Interspeech},
+    booktitle={Proc. Interspeech},
     year={2021}
     }
 

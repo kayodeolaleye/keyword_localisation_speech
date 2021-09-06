@@ -13,53 +13,26 @@ import librosa
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Keyword detection and localisation in speech')
-
-    # Low Frame Rate (stacking and skipping frames)
-    parser.add_argument('--LFR_m', default=4, type=int,
-                        help='Low Frame Rate: number of frames to stack')
-    parser.add_argument('--LFR_n', default=3, type=int,
-                        help='Low Frame Rate: number of frames to skip')
-
-    # general
-    # Network architecture
-    # TODO: automatically infer input dim
     
-    parser.add_argument('--atype', default='dot', type=str,
-                        help='Type of attention (Only support Dot Product now)')
-
     # Training config
     parser.add_argument('--epochs', default=100, type=int,
                         help='Number of maximum epochs')
-    parser.add_argument('--half_lr', dest='half_lr', default=True, type=bool,
-                        help='Halving learning rate when get small improvement')
     parser.add_argument('--early_stop', dest='early_stop', default=0, type=int,
                         help='Early stop training when halving lr but still get'
                              'small improvement')
-    parser.add_argument('--max_norm', default=5, type=float,
-                        help='Gradient norm threshold to clip')
     # minibatch
     parser.add_argument('--batch-size', '-b', default=32, type=int,
                         help='Batch size')
-    parser.add_argument('--maxlen_in', default=800, type=int, metavar='ML',
-                        help='Batch size is reduced if the input sequence length > ML')
     parser.add_argument('--num_workers', default=4, type=int,
                         help='Number of workers to generate minibatch')
-    # optimizer
-    parser.add_argument('--optimizer', default='adam', type=str,
-                        choices=['sgd', 'adam'],
-                        help='Optimizer (support sgd and adam now)')
     parser.add_argument('--lr', default=1e-3, type=float,
                         help='Init learning rate')
-    parser.add_argument('--momentum', default=0.0, type=float,
-                        help='Momentum for optimizer')
-    parser.add_argument('--l2', default=1e-5, type=float,
-                        help='weight decay (L2 penalty)')
     parser.add_argument('--checkpoint', type=str, default=None, help='checkpoint')
     parser.add_argument('--target_type', type=str, help='provide the type of target to use for supervision')
     parser.add_argument('--val_threshold', type=float, help='threshold to use during validation')
     parser.add_argument('--embed_size', default=1024, type=int, help='embedding dimension / dimension of the convolutional feature')
     parser.add_argument('--vocab_size', default=67, type=int, help='Size of speech corpus vocabulary')
-    parser.add_argument('--data_size', default=100, type=int, help='Quantity of speech corpus to use during training')
+    parser.add_argument('--data_size', default=100, type=int, help='Quantity of speech corpus to use during training in percentage')
 
     args = parser.parse_args()
     return args
