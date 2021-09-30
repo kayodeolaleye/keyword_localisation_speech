@@ -207,8 +207,9 @@ To visualise the training process
     Average EER: 0.0516
 
     Keyword spotting localisation
-    Average P@10: 0.6896
-    Average P@N: 0.6716
+    Average P@10: 0.6507
+    Average P@N: 0.5968
+
 
 ### Keyword Spotting CNN-Attend Soft
 
@@ -222,8 +223,9 @@ To visualise the training process
     Average EER: 0.2202
 
     Keyword spotting localisation
-    Average P@10: 0.5239
-    Average P@N: 0.5050
+    Average P@10: 0.2851
+    Average P@N: 0.2435
+
 
 
 ### Keyword Spotting CNN-PoolAttend BoW
@@ -238,8 +240,9 @@ To visualise the training process
     Average EER: 0.0961
 
     Keyword spotting localisation
-    Average P@10: 0.4284
-    Average P@N: 0.3959
+    Average P@10: 0.4149
+    Average P@N: 0.3670
+
 
 
 ### Keyword Spotting CNN-PoolAttend Soft
@@ -254,7 +257,7 @@ To visualise the training process
     Average EER: 0.2680
 
     Keyword spotting localisation
-    Average P@10: 0.1910
-    Average P@N: 0.1981
+    Average P@10: 0.0896
+    Average P@N: 0.0937
 
 
