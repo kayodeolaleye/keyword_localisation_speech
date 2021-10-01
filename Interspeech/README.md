@@ -93,9 +93,6 @@ To visualise the training process
 
     $ python test_cnnpoolattend.py --model_path 1623491324_cnnpoolattend_soft --target_type soft --test_threshold 0.4
 
-
-
-
 ### denseCNNAttend BoW
 
     python dense_localise.py --model_path 1623513734_cnnattend_bow --target_type bow --test_threshold 0.4 --min_frame 20 --max_frame 60 --step 3

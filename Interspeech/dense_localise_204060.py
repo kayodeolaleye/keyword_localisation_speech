@@ -87,21 +87,24 @@ if __name__ == "__main__":
             
         full_sigmoid_out = torch.sigmoid(full_out)
      
+        count = 0
         for i, (start, end) in enumerate(segments_dur):
-            segment_key = str(start) + "_" + str(end)
-            segment = padded_input[:, start:end]
-            segment = np.transpose(segment, (1, 0))
-            padded_segment, seg_len = pad(segment)
-            padded_segment = torch.from_numpy(padded_segment).unsqueeze(0).to(device)
-            # Feed padded segment to trained model
-            with torch.no_grad():
-                out, __ = model(padded_segment)
-                sigmoid_out = torch.sigmoid(out)
-                sigmoid_out = sigmoid_out.squeeze(0).cpu().numpy()
+            if ((end - start) == 20 or (end - start) == 40 or (end - start == 60)):
+                
+                segment_key = str(start) + "_" + str(end)
+                segment = padded_input[:, start:end]
+                segment = np.transpose(segment, (1, 0))
+                padded_segment, seg_len = pad(segment)
+                padded_segment = torch.from_numpy(padded_segment).unsqueeze(0).to(device)
+                # Feed padded segment to trained model
+                with torch.no_grad():
+                    out, __ = model(padded_segment)
+                    sigmoid_out = torch.sigmoid(out)
+                    sigmoid_out = sigmoid_out.squeeze(0).cpu().numpy()
 
-            all_utt_seg_score[i, :] = sigmoid_out
-            all_utt_segment_dur.append((start, end))
-        
+                all_utt_seg_score[count, :] = sigmoid_out
+                all_utt_segment_dur.append((start, end))
+                count += 1
         proposed_max_durations = np.argmax(all_utt_seg_score, 0)  # size = 67
         valid_proposed_max_durations = []
         for word_id, segment_ind in enumerate(proposed_max_durations):
@@ -132,9 +135,9 @@ if __name__ == "__main__":
     # # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
 
-    np.savez("output/full_proposed_max_durations.npz", full_proposed_max_durations)
-    np.savez("output/full_all_utt_segment_dur.npz", full_all_utt_segment_dur)
-    np.savez("output/full_all_utt_seg_score.npz", full_all_utt_seg_score)
+    np.savez("outputs/full_proposed_max_durations.npz", full_proposed_max_durations)
+    np.savez("outputs/full_all_utt_segment_dur.npz", full_all_utt_segment_dur)
+    np.savez("outputs/full_all_utt_seg_score.npz", full_all_utt_seg_score)
 
     print
     print("-"*79)
