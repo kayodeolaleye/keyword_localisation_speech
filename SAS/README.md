@@ -229,8 +229,8 @@ To visualise the training process
     Average EER: 0.1004
 
     Keyword spotting localisation
-    Average P@10: 0.6582
-    Average P@N: 0.6631
+    Average P@10: 0.6224
+    Average P@N: 0.5890
 
     Soft PSC
 
@@ -242,10 +242,12 @@ To visualise the training process
     Average EER: 0.3554
 
     Keyword spotting localisation
-    Average P@10: 0.2299
-    Average P@N: 0.2529
+    Average P@10: 0.0821
+    Average P@N: 0.0856
 
     BoW CNN-Pool
+
+    python kws_cnnpool.py --model_path 1622451369_cnnpool_bow --target_type bow --analyze
 
     Keyword spotting
     Average P@10: 0.9552
@@ -253,10 +255,13 @@ To visualise the training process
     Average EER: 0.0619
 
     Keyword spotting localisation
-    Average P@10: 0.1582
-    Average P@N: 0.1469
+    Average P@10: 0.1522
+    Average P@N: 0.1310
+
 
     Visual CNN-Pool
+
+    python kws_cnnpool.py --model_path 1621368712_cnnpool_soft --target_type soft --analyze
 
     Keyword spotting
     Average P@10: 0.4448
@@ -264,5 +269,6 @@ To visualise the training process
     Average EER: 0.2280
 
     Keyword spotting localisation
-    Average P@10: 0.1015
-    Average P@N: 0.1083
+    Average P@10: 0.0418
+    Average P@N: 0.0337
+

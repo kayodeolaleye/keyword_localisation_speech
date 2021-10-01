@@ -102,6 +102,7 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, c
 
 
             else:
+                y_true_loc.append(0)
                 y_true.append(0)
         y_score = keyword_sigmoid_mat[:, i_keyword][rank_order]
      
