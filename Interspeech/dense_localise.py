@@ -1,6 +1,7 @@
 from librosa.core.audio import get_duration
 import numpy as np
 import torch
+import os
 from tqdm import tqdm
 import argparse
 from utils import ensure_folder, extract_feature, get_gt_token_duration, get_logger, get_localisation_metric_count, eval_localisation_accuracy, eval_localisation_prf, split_frame_length, plot_stuff
@@ -72,6 +73,7 @@ if __name__ == "__main__":
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
+        key = os.path.basename(wave).split(".")[0]
         gt_trn = [i for i in sample["trn"] if i in VOCAB]
         # print("gt_trn: ", gt_trn)
         target_dur_full = sample["dur"]
@@ -87,7 +89,7 @@ if __name__ == "__main__":
             
         full_sigmoid_out = torch.sigmoid(full_out)
      
-        for i, (start, end) in enumerate(segments_dur):
+        for j, (start, end) in enumerate(segments_dur):
             segment_key = str(start) + "_" + str(end)
             segment = padded_input[:, start:end]
             segment = np.transpose(segment, (1, 0))
@@ -99,7 +101,7 @@ if __name__ == "__main__":
                 sigmoid_out = torch.sigmoid(out)
                 sigmoid_out = sigmoid_out.squeeze(0).cpu().numpy()
 
-            all_utt_seg_score[i, :] = sigmoid_out
+            all_utt_seg_score[j, :] = sigmoid_out
             all_utt_segment_dur.append((start, end))
         
         proposed_max_durations = np.argmax(all_utt_seg_score, 0)  # size = 67
@@ -113,7 +115,6 @@ if __name__ == "__main__":
         valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn] 
         token_gt_duration = get_gt_token_duration(target_dur, valid_gt_trn) # ground truth start and end time for each word in utterance
 
-        
         # Evaluating model's performance on localisation of keywords in one utterance
         l_analysis = get_localisation_metric_count(hyp_duration, token_gt_duration)
         l_n_tp += l_analysis[0]
@@ -125,16 +126,16 @@ if __name__ == "__main__":
         total += t
         # plot_stuff(valid_proposed_max_durations, all_utt_segment_dur, all_utt_seg_score, target_dur_full, wave, iVOCAB)
 
-        full_proposed_max_durations[str(i)] = proposed_max_durations
-        full_all_utt_segment_dur[str(i)] = all_utt_segment_dur
-        full_all_utt_seg_score[str(i)] = all_utt_seg_score
+        full_proposed_max_durations[key] = proposed_max_durations
+        full_all_utt_segment_dur[key] = all_utt_segment_dur
+        full_all_utt_seg_score[key] = all_utt_seg_score
 
     # # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
 
-    np.savez("output/full_proposed_max_durations.npz", full_proposed_max_durations)
-    np.savez("output/full_all_utt_segment_dur.npz", full_all_utt_segment_dur)
-    np.savez("output/full_all_utt_seg_score.npz", full_all_utt_seg_score)
+    np.savez_compressed("output/full_proposed_max_durations.npz", **full_proposed_max_durations)
+    np.savez_compressed("output/full_all_utt_segment_dur.npz", **full_all_utt_segment_dur)
+    np.savez_compressed("output/full_all_utt_seg_score.npz", **full_all_utt_seg_score)
 
     print
     print("-"*79)
