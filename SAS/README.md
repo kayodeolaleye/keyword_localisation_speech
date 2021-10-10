@@ -101,7 +101,7 @@ To visualise the training process
 
 ### 67 keywords
 
-    python test_psc_67.py --model_path 1621334318_psc_bow --target_type bow --test_threshold 0.4
+    python test_psc_67.py --model_path 1621334318_psc_bow --target_type bow --test_threshold 0.5
 
 ### Train CNN_Pool model Bag-of-words (bow) targets
 
@@ -126,7 +126,7 @@ To visualise the training process
 
 ### Results on 67 keywords
 
-    python test_psc_67.py --model_path 1621293877_psc_soft --target_type soft --test_threshold 0.4
+    python test_psc_67.py --model_path 1621293877_psc_soft --target_type soft --test_threshold 0.5
 
 ### Results on test set
 
@@ -176,9 +176,9 @@ To visualise the training process
 
 ### Results on 67 keywords
 
-    python test_cnnpool_67.py --model_path 1622451369_cnnpool_bow --target_type bow --test_threshold 0.4
+    python test_cnnpool_67.py --model_path 1622451369_cnnpool_bow --target_type bow --test_threshold 0.5
 
-    python test_cnnpool_67.py --model_path 1621368712_cnnpool_soft --target_type soft --test_threshold 0.4
+    python test_cnnpool_67.py --model_path 1621368712_cnnpool_soft --target_type soft --test_threshold 0.5
 
 ### Results on test set
 

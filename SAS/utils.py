@@ -166,8 +166,9 @@ def extract_feature(
     save_feature=None):
 
     y, sr = librosa.load(input_file, sr=sr)
-    yt, _ = librosa.effects.trim(y, top_db=20)
-    yt = normalize(yt)
+    # yt, _ = librosa.effects.trim(y, top_db=20)
+    # yt = normalize(yt)
+    yt = normalize(y)
     yt = preemphasis(yt, preemph_coef)
     ws = int(sr * 0.001 * window_size)
     st = int(sr * 0.001 * stride)

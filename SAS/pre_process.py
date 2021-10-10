@@ -38,7 +38,7 @@ def get_data(split):
                 soft = soft_tags_dict[key[:-2]]
 
                 ctm_entry = ctm_dict[key[:-2] + ".jpg_#" + key[-1]]
-                utt_start = ctm_entry[0][0]
+                utt_start = 0
                 for start, dur, label in ctm_entry:
                     xstart = round((start - utt_start) * 100)
                     xstop = round((start - utt_start + dur) * 100)
