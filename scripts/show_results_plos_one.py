@@ -45,7 +45,7 @@ def load_predictions(to_trim):
     return utt_scores, loc_scores, loc_segments
 
 
-@st.cache
+@st.cache(allow_output_mutation=True)
 def load_data(to_trim):
     with open(os.path.join(BASE_PATH, config.pickle_file), "rb") as f:
         data = pickle.load(f)
