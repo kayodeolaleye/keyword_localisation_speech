@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from itertools import groupby
 from functools import partial
 from socket import gethostname
-from typing import Any, Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import click  # type: ignore
 
@@ -97,6 +97,17 @@ OUTPUT_DIR = "trained_models"
 
 LOG_TRAIN_FREQ = 16
 LOG_VALID_FREQ = 256
+
+
+def load_hparams(config_name: Optional[str]) -> Dict[str, Any]:
+    config_path = config_name and os.path.join("config-files", config_name + ".json")
+    if config_path and os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            hparams = json.load(f)
+        hparams["name"] = config_name
+    else:
+        hparams = {}
+    return merge(HPARAMS, hparams)
 
 
 @dataclass
@@ -556,14 +567,7 @@ def train(hparams):
 @click.command()
 @click.option("--config", "config_name")
 def main(config_name=None):
-    config_path = config_name and os.path.join("config-files", config_name + ".json")
-    if config_path and os.path.exists(config_path):
-        with open(config_path, "r") as f:
-            config = json.load(f)
-        config["name"] = config_name
-    else:
-        config = {}
-    hparams = merge(HPARAMS, config)
+    hparams = load_hparams(config_name)
     print(json.dumps(hparams, indent=4))
     train(hparams)
 
