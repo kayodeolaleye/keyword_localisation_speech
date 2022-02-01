@@ -204,8 +204,10 @@ AUDIO_MODELS = {
 
 
 AUDIO_FEATURES = {
+    # fmt: off
     "mfcc": partial(extract_feature, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True),
     "spectrogram": partial(extract_feature, feature="fbank", dim=256),
+    # fmt: on
 }
 
 
@@ -300,7 +302,14 @@ TARGET_LOADERS = {
 
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, *, split: Split, target_type: TeacherType, is_train: bool, audio_features: str):
+    def __init__(
+        self,
+        *,
+        split: Split,
+        target_type: TeacherType,
+        is_train: bool,
+        audio_features: str,
+    ):
         super().__init__()
         self.samples = self.load_samples(split)
         self.is_train = is_train
@@ -354,7 +363,9 @@ class Flickr8kDataset(Dataset):
         return list(concat(img_key_to_keys[img_key] for img_key in img_keys))
 
     def load_audio_features(self, sample_name):
-        feature = AUDIO_FEATURES[self.audio_features](input_file=self.get_audio_path(sample_name))
+        feature = AUDIO_FEATURES[self.audio_features](
+            input_file=self.get_audio_path(sample_name)
+        )
         feature = (feature - feature.mean()) / feature.std()
         if self.is_train:
             feature = spec_augment(feature)
@@ -376,13 +387,23 @@ class Flickr8kDataset(Dataset):
 
 def get_data_loaders(audio_features, teacher_model_name, batch_size):
     train_loader = DataLoader(
-        Flickr8kDataset(split="train", target_type=teacher_model_name, is_train=True, audio_features=audio_features),
+        Flickr8kDataset(
+            split="train",
+            target_type=teacher_model_name,
+            is_train=True,
+            audio_features=audio_features,
+        ),
         batch_size=batch_size,
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
     )
     valid_loader = DataLoader(
-        Flickr8kDataset(split="dev", target_type=teacher_model_name, is_train=False, audio_features=audio_features),
+        Flickr8kDataset(
+            split="dev",
+            target_type=teacher_model_name,
+            is_train=False,
+            audio_features=audio_features,
+        ),
         batch_size=batch_size,
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
@@ -508,7 +529,11 @@ def train(hparams):
 
     # Chekpoint
     output_dir = os.path.join(OUTPUT_DIR, hparams.get("name", ""))
-    prefix = "{}-{}-{}".format(hparams["audio-features"], hparams["audio-model-name"], hparams["teacher-model-name"])
+    prefix = "{}-{}-{}".format(
+        hparams["audio-features"],
+        hparams["audio-model-name"],
+        hparams["teacher-model-name"],
+    )
     checkpoint_handler = ModelCheckpoint(
         output_dir,
         prefix,
@@ -563,7 +588,10 @@ def train(hparams):
             trainer,
             event_name=Events.ITERATION_COMPLETED(every=LOG_TRAIN_FREQ),
             tag="training",
-            output_transform=lambda loss: {"loss": loss, "mutual-information": mi(loss)},
+            output_transform=lambda loss: {
+                "loss": loss,
+                "mutual-information": mi(loss),
+            },
         )
 
         wandb_logger.attach_output_handler(
