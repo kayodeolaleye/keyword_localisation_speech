@@ -35,12 +35,22 @@ np.random.seed(SEED)
 # sns.set_context("paper")
 
 
+# def load_predictions(to_trim):
+#     suffix = "_untrimmed" if not to_trim else ""
+#     base_dir = "Interspeech/output/outputs_204060_ws" + suffix
+#     loc_segments = np.load(os.path.join(base_dir, "full_all_utt_segment_dur.npz"))
+#     loc_scores = np.load(os.path.join(base_dir, "full_all_utt_seg_score.npz"))
+#     utt_scores = np.load(os.path.join(base_dir, "all_full_sigmoid_out.npz"))
+#     # utt_scores = {k: np.max(v, axis=0) for k, v in loc_scores.items()}
+#     return utt_scores, loc_scores, loc_segments
+
+
 def load_predictions(to_trim):
-    suffix = "_untrimmed" if not to_trim else ""
-    base_dir = "Interspeech/output/outputs_204060_ws" + suffix
-    loc_segments = np.load(os.path.join(base_dir, "full_all_utt_segment_dur.npz"))
-    loc_scores = np.load(os.path.join(base_dir, "full_all_utt_seg_score.npz"))
-    utt_scores = np.load(os.path.join(base_dir, "all_full_sigmoid_out.npz"))
+    base_dir = "Interspeech/output/outputs_full"
+    loc_segments = np.load(os.path.join(base_dir, "full_all_utt_segment_dur_dict.npz"))
+    loc_scores = np.load(os.path.join(base_dir, "full_all_utt_seg_score_dict.npz"))
+    utt_scores = np.load(os.path.join("Interspeech/output/outputs_204060_ws_untrimmed", "all_full_sigmoid_out.npz"))
+    # utt_scores = np.load(os.path.join(base_dir, "full_proposed_max_durations_dict.npz"))
     # utt_scores = {k: np.max(v, axis=0) for k, v in loc_scores.items()}
     return utt_scores, loc_scores, loc_segments
 
@@ -162,9 +172,9 @@ def update_text_alignments(samples):
 def aggregate_scores(scores, segments):
     # aggregate by midpoint through the maximum operation
     midpoint = lambda seg: (seg[0] + seg[1]) / 2
-    agg = lambda group: max(map(second, group))
+    agg = lambda group: np.max(np.vstack(list(map(second, group))), axis=0)
 
-    locations_scores = sorted(zip(map(midpoint, segments), scores))
+    locations_scores = sorted(zip(map(midpoint, segments), scores), key=first)
     locations_scores_agg = [
         (loc, agg(group)) for loc, group in groupby(locations_scores, first)
     ]
@@ -172,11 +182,14 @@ def aggregate_scores(scores, segments):
 
     scores_agg = np.array(scores_agg)
     locations = np.array(locations)
-    return scores, locations
+    return scores_agg, locations
 
 
 def find_word_at_predicted_location(sample, word_id):
-    loc_best = sample["locations"][np.argmax(sample["scores"][:, word_id])]
+    try:
+        loc_best = sample["locations"][np.argmax(sample["scores"][:, word_id])]
+    except:
+        pdb.set_trace()
     for i, ((start, end), _, word) in enumerate(sample["text"]):
         if start <= loc_best <= end:
             return word
@@ -219,7 +232,7 @@ def main(predictions_path):
         [w] + list(concat([fmt_word(v), c] for v, c in predicted_words_dict[w].most_common(5)))
         for w in vocab
     ]
-    # st.code(tabulate(table_predicted_words, tablefmt="latex_booktabs"))
+    st.code(tabulate(table_predicted_words, tablefmt="latex_booktabs"))
 
     word = st.selectbox("keyword", list(vocab.keys()))
     word_id = vocab[word]
