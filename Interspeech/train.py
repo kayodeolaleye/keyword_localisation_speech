@@ -64,6 +64,8 @@ def train_net(args):
     valid_dataset = Flickr8kDataset('dev', 100) # use all the available dev set
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False, num_workers=num_workers)
 
+    model = model.to(device)
+
     # Epochs
     for epoch in range(start_epoch, args.epochs):
         # One epoch's training
