@@ -239,14 +239,11 @@ class FeaturesImageCLIPLoader:
 
 
 class FeaturesAudioCLIPLoader:
-    def __init__(self, base_path=""):
-        path = os.path.join(
-            base_path, "output/cnn-transformer-features-image-clip-flickr8k-test.npz"
-        )
-        data = np.load(path)
+    def __init__(self, name, base_path=""):
+        path = os.path.join(base_path, f"output/{name}-flickr8k-test.npy")
+        self.pred = np.load(path)
         samples = [s.value for s in Flickr8kDataset.load_samples("test")]
         self.name_to_index = {n: i for i, n in enumerate(samples)}
-        self.pred = data["pred"]
 
     def __call__(self, sample_name: KeyAudio):
         index = self.name_to_index[sample_name.value]
