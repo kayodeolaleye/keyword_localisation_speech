@@ -76,7 +76,7 @@ TeacherType = Literal["labels-image-vgg", "labels-text", "features-image-clip"]
 
 # Hyper-parameters
 HPARAMS: Dict[str, Any] = {
-    "name": "{:032x}".format(random.getrandbits(128)),
+    # "name": "{:032x}".format(random.getrandbits(128)),
     "audio-model-name": "cnn-transformer",
     "teacher-model-name": "features-image-clip",
     "batch-size": 64,
