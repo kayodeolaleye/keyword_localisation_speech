@@ -24,6 +24,7 @@ import pickle
 import random
 import re
 
+from abc import ABC
 from dataclasses import dataclass
 from itertools import groupby
 from functools import partial
@@ -77,6 +78,7 @@ TeacherType = Literal["labels-image-vgg", "labels-text", "features-image-clip"]
 # Hyper-parameters
 HPARAMS: Dict[str, Any] = {
     # "name": "{:032x}".format(random.getrandbits(128)),
+    "audio-features": "mfcc",
     "audio-model-name": "cnn-transformer",
     "teacher-model-name": "features-image-clip",
     "batch-size": 64,
@@ -130,7 +132,25 @@ class KeyAudio:
 Key = Union[KeyImage, KeyAudio]
 
 
-class CNNTransformer(torch.nn.Module):
+class AudioCLIP(ABC, torch.nn.Module):
+    def __init__(self):
+        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+    @abstractmethod
+    def embed_audio(self, audio):
+        raise NotImplemented
+
+    def forward(self, audio_and_target):
+        audio, target = audio_and_target
+        input_ = self.embed_audio(audio)
+        inp_features = input_ / input_.norm(dim=-1, keepdim=True)
+        out_features = target / target.norm(dim=-1, keepdim=True)
+        τ = torch.clamp(self.logit_scale.exp(), 0, 100)
+        logits = τ * inp_features @ out_features.T
+        return logits
+
+
+class CNNTransformer(AudioCLIP):
     def __init__(self, embed_dim=512, **kwargs):
         super().__init__()
         # Convolutional module
@@ -153,7 +173,6 @@ class CNNTransformer(torch.nn.Module):
         self.transformer = Transformer(width=width, layers=8, heads=4)
         self.ln_final = torch.nn.LayerNorm(width)
         self.proj = torch.nn.Linear(width, embed_dim)
-        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
     def embed_audio(self, audio):
         x = self.conv(audio)
@@ -164,18 +183,29 @@ class CNNTransformer(torch.nn.Module):
         x = self.proj(x)
         return x
 
-    def forward(self, audio_and_target):
-        audio, target = audio_and_target
-        input_ = self.embed_audio(audio)
-        inp_features = input_ / input_.norm(dim=-1, keepdim=True)
-        out_features = target / target.norm(dim=-1, keepdim=True)
-        τ = torch.clamp(self.logit_scale.exp(), 0, 100)
-        logits = τ * inp_features @ out_features.T
-        return logits
+
+class Resnet(AudioCLIP):
+    def __init__(self, embed_dim, num_layers, pretrained):
+        assert num_layers == 18
+        assert embed_dim == 512
+        model = models.resnet18(pretrained=pretrained)
+        self.feature_extractor = torch.nn.Sequential(*(list(model.children())[:-1]))
+
+    def embed_audio(self, audio):
+        x = self.feature_extractor(audio)
+        # TODO Layer normalization? Projection?
+        return x
 
 
 AUDIO_MODELS = {
     "cnn-transformer": CNNTransformer,
+    "resnet18-pretrained": partial(Resnet, num_layers=18, pretrained=True),
+}
+
+
+AUDIO_FEATURES = {
+    "mfcc": partial(extract_feature, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True),
+    "spectrogram": partial(extract_feature, feature="fbank", dim=256),
 }
 
 
@@ -270,11 +300,12 @@ TARGET_LOADERS = {
 
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, *, split: Split, target_type: TeacherType, is_train: bool):
+    def __init__(self, *, split: Split, target_type: TeacherType, is_train: bool, audio_features: str):
         super().__init__()
         self.samples = self.load_samples(split)
         self.is_train = is_train
         self.load_target = TARGET_LOADERS[target_type]()
+        self.audio_features = audio_features
 
     @staticmethod
     def load_transcripts():
@@ -323,14 +354,7 @@ class Flickr8kDataset(Dataset):
         return list(concat(img_key_to_keys[img_key] for img_key in img_keys))
 
     def load_audio_features(self, sample_name):
-        feature = extract_feature(
-            input_file=self.get_audio_path(sample_name),
-            feature="mfcc",
-            dim=13,
-            cmvn=True,
-            delta=True,
-            delta_delta=True,
-        )
+        feature = AUDIO_FEATURES[self.audio_features](input_file=self.get_audio_path(sample_name))
         feature = (feature - feature.mean()) / feature.std()
         if self.is_train:
             feature = spec_augment(feature)
@@ -350,15 +374,15 @@ class Flickr8kDataset(Dataset):
         return len(self.samples)
 
 
-def get_data_loaders(teacher_model_name, batch_size):
+def get_data_loaders(audio_features, teacher_model_name, batch_size):
     train_loader = DataLoader(
-        Flickr8kDataset(split="train", target_type=teacher_model_name, is_train=True),
+        Flickr8kDataset(split="train", target_type=teacher_model_name, is_train=True, audio_features=audio_features),
         batch_size=batch_size,
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
     )
     valid_loader = DataLoader(
-        Flickr8kDataset(split="dev", target_type=teacher_model_name, is_train=False),
+        Flickr8kDataset(split="dev", target_type=teacher_model_name, is_train=False, audio_features=audio_features),
         batch_size=batch_size,
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
@@ -390,6 +414,7 @@ def train(hparams):
     target_type, *_ = hparams["teacher-model-name"].split("-")
 
     train_loader, valid_loader = get_data_loaders(
+        hparams["audio-features"],
         hparams["teacher-model-name"],
         hparams["batch-size"],
     )
@@ -483,7 +508,7 @@ def train(hparams):
 
     # Chekpoint
     output_dir = os.path.join(OUTPUT_DIR, hparams.get("name", ""))
-    prefix = "{}-{}".format(hparams["audio-model-name"], hparams["teacher-model-name"])
+    prefix = "{}-{}-{}".format(hparams["audio-features"], hparams["audio-model-name"], hparams["teacher-model-name"])
     checkpoint_handler = ModelCheckpoint(
         output_dir,
         prefix,
