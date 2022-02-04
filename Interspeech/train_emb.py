@@ -627,12 +627,9 @@ def train(hparams):
         )
 
     # Chekpoint
-    output_dir = os.path.join(OUTPUT_DIR, hparams.get("name", ""))
-    prefix = "{}-{}-{}".format(
-        hparams["audio-features"],
-        hparams["audio-model-name"],
-        hparams["teacher-model-name"],
-    )
+    output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
+    prefix = "model"
+
     checkpoint_handler = ModelCheckpoint(
         output_dir,
         prefix,

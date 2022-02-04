@@ -59,8 +59,9 @@ BATCH_SIZE = 512
 
 
 def get_model_path(audio_model_name, teacher_model_name):
-    prefix = "{}-{}".format(audio_model_name, teacher_model_name)
-    files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith(prefix)]
+    output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
+    prefix = "model"
+    files = [f for f in os.listdir(output_dir) if f.startswith(prefix)]
     # assert len(files) == 1
 
     selected_file = first(files)
@@ -77,13 +78,16 @@ def load_model(audio_model_name, model_path):
 
 def load_model_hparams(hparams):
     output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
-    prefix = "{}-{}".format(hparams["audio-model-name"], hparams["teacher-model-name"])
+    prefix = "model"
+
     model = AUDIO_MODELS[hparams["audio-model-name"]](OUT_DIM)
     files = [f for f in os.listdir(output_dir) if f.startswith(prefix)]
+
     model_path = os.path.join(output_dir, sorted(files)[-1])
     model.load_state_dict(torch.load(model_path)["model"])
     model.to(device)
     print("Loaded model from", model_path)
+
     return model
 
 
