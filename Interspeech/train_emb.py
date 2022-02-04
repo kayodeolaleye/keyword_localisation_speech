@@ -79,7 +79,7 @@ TeacherType = Literal["labels-image-vgg", "labels-text", "features-image-clip"]
 # Hyper-parameters
 HPARAMS: Dict[str, Any] = {
     # "name": "{:032x}".format(random.getrandbits(128)),
-    "audio-features": "mfcc",
+    "audio-features-type": "mfcc",
     "audio-model-name": "cnn-transformer",
     "teacher-model-name": "features-image-clip",
     "batch-size": 64,
@@ -333,20 +333,71 @@ TARGET_LOADERS = {
 }
 
 
-class Flickr8kDataset(Dataset):
+def get_flickr_image_path(sample_name: Union[KeyAudio, KeyImage]):
+    if isinstance(sample_name, KeyAudio):
+        key = sample_name.to_key_image().value
+    elif isinstance(sample_name, KeyImage):
+        key = sample_name.value
+    return os.path.join(
+        config.BASE_DIR,
+        "flickr8k-images",
+        "Flicker8k_Dataset",
+        key + ".jpg",
+    )
+
+
+class AudioDataset(ABC, Dataset):
+    def __init__(self):
+        super().__init__()
+        self.audio_features_type = "mfcc"
+        self.is_train = False
+        self.samples = []
+
+    @abstractmethod
+    def get_audio_path(self, sample_name):
+        pass
+
+    @abstractmethod
+    def load_target(self, sample_name):
+        pass
+
+    def load_audio_features(self, sample_name):
+        feature = AUDIO_FEATURES[self.audio_features_type](
+            input_file=self.get_audio_path(sample_name)
+        )
+        feature = (feature - feature.mean()) / feature.std()
+        if self.is_train:
+            feature = spec_augment(feature)
+        return feature
+
+    def __getitem__(self, i):
+        if i >= len(self):
+            raise IndexError
+        sample_name = self.samples[i]
+        audio = torch.tensor(self.load_audio_features(sample_name))
+        audio = audio[: HPARAMS["max-len-audio"]]
+        audio = audio.t()  # Matches Kayode's model assumption: temporal axis is last
+        target = torch.tensor(self.load_target(sample_name))
+        return audio, target
+
+    def __len__(self):
+        return len(self.samples)
+
+
+class Flickr8kDataset(AudioDataset):
     def __init__(
         self,
         *,
         split: Split,
         target_type: TeacherType,
+        audio_features_type: str,
         is_train: bool,
-        audio_features: str,
     ):
         super().__init__()
         self.samples = self.load_samples(split)
         self.is_train = is_train
         self.load_target = TARGET_LOADERS[target_type]()
-        self.audio_features = audio_features
+        self.audio_features_type = audio_features_type
 
     @staticmethod
     def load_transcripts():
@@ -361,16 +412,7 @@ class Flickr8kDataset(Dataset):
 
     @staticmethod
     def get_image_path(sample_name: Union[KeyAudio, KeyImage]):
-        if isinstance(sample_name, KeyAudio):
-            key = sample_name.to_key_image().value
-        elif isinstance(sample_name, KeyImage):
-            key = sample_name.value
-        return os.path.join(
-            config.BASE_DIR,
-            "flickr8k-images",
-            "Flicker8k_Dataset",
-            key + ".jpg",
-        )
+        return get_flickr_image_path(sample_name)
 
     @staticmethod
     def load_samples_all():
@@ -394,24 +436,7 @@ class Flickr8kDataset(Dataset):
         }
         return list(concat(img_key_to_keys[img_key] for img_key in img_keys))
 
-    def load_audio_features(self, sample_name):
-        feature = AUDIO_FEATURES[self.audio_features](
-            input_file=self.get_audio_path(sample_name)
-        )
-        feature = (feature - feature.mean()) / feature.std()
-        if self.is_train:
-            feature = spec_augment(feature)
-        return feature
 
-    def __getitem__(self, i):
-        if i >= len(self):
-            raise IndexError
-        sample_name = self.samples[i]
-        audio = torch.tensor(self.load_audio_features(sample_name))
-        audio = audio[: HPARAMS["max-len-audio"]]
-        audio = audio.t()  # Matches Kayode's model assumption: temporal axis is last
-        target = torch.tensor(self.load_target(sample_name))
-        return audio, target
 
     def __len__(self):
         return len(self.samples)
@@ -423,7 +448,7 @@ def get_data_loaders(audio_features, teacher_model_name, batch_size):
             split="train",
             target_type=teacher_model_name,
             is_train=True,
-            audio_features=audio_features,
+            audio_features_type=audio_features_type,
         ),
         batch_size=batch_size,
         shuffle=True,
@@ -434,7 +459,7 @@ def get_data_loaders(audio_features, teacher_model_name, batch_size):
             split="dev",
             target_type=teacher_model_name,
             is_train=False,
-            audio_features=audio_features,
+            audio_features_type=audio_features_type,
         ),
         batch_size=batch_size,
         shuffle=True,
@@ -467,7 +492,7 @@ def train(hparams):
     target_type, *_ = hparams["teacher-model-name"].split("-")
 
     train_loader, valid_loader = get_data_loaders(
-        hparams["audio-features"],
+        hparams["audio-features-type"],
         hparams["teacher-model-name"],
         hparams["batch-size"],
     )
