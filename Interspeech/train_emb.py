@@ -81,7 +81,7 @@ HPARAMS: Dict[str, Any] = {
     # "name": "{:032x}".format(random.getrandbits(128)),
     "audio-features-type": "mfcc",
     "audio-model-name": "cnn-transformer",
-    "dataset": "flickr8k",
+    "dataset-name": "flickr8k",
     "teacher-model-name": "features-image-clip",
     "batch-size": 64,
     "lr": 4 * 1e-4,
@@ -528,7 +528,7 @@ def train(hparams):
     target_type, *_ = hparams["teacher-model-name"].split("-")
 
     train_loader, valid_loader = get_data_loaders(
-        hparams["dataset"],
+        hparams["dataset-name"],
         hparams["audio-features-type"],
         hparams["teacher-model-name"],
         hparams["batch-size"],
