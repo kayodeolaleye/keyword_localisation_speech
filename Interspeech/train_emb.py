@@ -98,9 +98,6 @@ EMBED_SIZE = 1000
 OUT_DIM = 512
 OUTPUT_DIR = "trained_models"
 
-LOG_TRAIN_FREQ = 16
-LOG_VALID_FREQ = 256
-
 
 def load_hparams(config_name: Optional[str]) -> Dict[str, Any]:
     config_path = config_name and os.path.join("config-files", config_name + ".json")
@@ -473,6 +470,11 @@ def train(hparams):
         hparams["teacher-model-name"],
         hparams["batch-size"],
     )
+
+    B = hparams["batch-size"]
+    assert B <= 1024
+    LOG_TRAIN_FREQ = 256 * 16 // B
+    LOG_VALID_FREQ = 256 * 256 // B
 
     model = AUDIO_MODELS[hparams["audio-model-name"]](OUT_DIM)
     model.to(config.device)
