@@ -37,6 +37,7 @@ import numpy as np
 
 import torch
 import torch.nn
+import torchvision.models
 
 from torch.nn.functional import binary_cross_entropy, cross_entropy, mse_loss
 from torch.utils.data import DataLoader, Dataset
@@ -186,19 +187,52 @@ class CNNTransformer(AudioCLIP):
 
 class Resnet(AudioCLIP):
     def __init__(self, embed_dim, num_layers, pretrained):
+        super().__init__()
         assert num_layers == 18
-        assert embed_dim == 512
-        model = models.resnet18(pretrained=pretrained)
+        # width = 64
+        # self.conv = torch.nn.Sequential(
+        #     torch.nn.Conv1d(128, width, 9, 2, 4),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Conv1d(96, 96, 11, 1, 5),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Conv1d(96, 96, 11, 2, 5),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Conv1d(96, width, 11, 1, 5),
+        # )
+        model = torchvision.models.resnet18(pretrained=pretrained)
+        feature_dim = 512
+        # model.eval()
         self.feature_extractor = torch.nn.Sequential(*(list(model.children())[:-1]))
+        # Since the spectrogram has a single channel average the convolution weights in the first layer.
+        weight = self.feature_extractor[0].weight.mean(1, keepdim=True)
+        self.feature_extractor[0].weight = torch.nn.Parameter(weight)
+        self.ln_final = torch.nn.LayerNorm(feature_dim)
+        self.proj = torch.nn.Linear(feature_dim, embed_dim)
 
     def embed_audio(self, audio):
-        x = self.feature_extractor(audio)
-        # TODO Layer normalization? Projection?
+        # DEBUG
+        # p = lambda x: x[0].detach().cpu().numpy()
+        # fig, axs = plt.subplots(1, 3)
+        # axs[0].imshow(p(x))
+        # axs[0].set_title(x.shape)
+        # x = self.conv(x)
+        # axs[1].imshow(p(x))
+        # axs[1].set_title(x.shape)
+        # axs[2].plot(p(x))
+        # st.pyplot(fig)
+        # pdb.set_trace()
+        x = audio
+        x = x.unsqueeze(1)
+        x = self.feature_extractor(x)
+        x = x.squeeze(-1).squeeze(-1)
+        x = self.ln_final(x)
+        x = self.proj(x)
         return x
 
 
 AUDIO_MODELS = {
     "cnn-transformer": CNNTransformer,
+    "resnet18": partial(Resnet, num_layers=18, pretrained=False),
     "resnet18-pretrained": partial(Resnet, num_layers=18, pretrained=True),
 }
 
