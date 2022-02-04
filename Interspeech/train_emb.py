@@ -132,6 +132,7 @@ Key = Union[KeyImage, KeyAudio]
 
 class AudioCLIP(ABC, torch.nn.Module):
     def __init__(self):
+        super().__init__()
         self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
     @abstractmethod
