@@ -24,7 +24,7 @@ import pickle
 import random
 import re
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import groupby
 from functools import partial
