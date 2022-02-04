@@ -81,6 +81,7 @@ HPARAMS: Dict[str, Any] = {
     # "name": "{:032x}".format(random.getrandbits(128)),
     "audio-features-type": "mfcc",
     "audio-model-name": "cnn-transformer",
+    "dataset": "flickr8k",
     "teacher-model-name": "features-image-clip",
     "batch-size": 64,
     "lr": 4 * 1e-4,
@@ -437,14 +438,49 @@ class Flickr8kDataset(AudioDataset):
         return list(concat(img_key_to_keys[img_key] for img_key in img_keys))
 
 
+class Flickr8kYorubaDataset(AudioDataset):
+    def __init__(
+        self,
+        *,
+        filelist: str,
+        split: Split,
+        target_type: TeacherType,
+        audio_features_type: str,
+        is_train: bool,
+    ):
+        assert target_type == "features-image-clip"
+        super().__init__()
+        self.data_path = "data/flickr8k-yoruba"
+        self.samples = self.load_samples(filelist, split)
+        self.is_train = is_train
+        self.load_target = TARGET_LOADERS[target_type]()
+        self.audio_features_type = audio_features_type
 
-    def __len__(self):
-        return len(self.samples)
+    def load_transcripts(self):
+        file_transcript = os.path.join(self.data_path, "text")
+        return dict(load(file_transcript, parse_token))
+
+    def get_audio_path(self, sample_name: KeyAudio):
+        return os.path.join(self.data_path, "wavs", sample_name.value + ".wav")
+
+    def get_image_path(self, sample_name: Union[KeyAudio, KeyImage]):
+        return get_flickr_image_path(sample_name)
+
+    def load_samples(self, filelist: str, split: Split) -> List[KeyAudio]:
+        path = os.path.join(self.data_path, "filelists", filelist + "-" + split + ".txt")
+        return load(path, lambda line: line.strip())
 
 
-def get_data_loaders(audio_features, teacher_model_name, batch_size):
+DATASETS = {
+    "flickr8k": Flickr8kDataset,
+    "flickr8k-yoruba-tiny": partial(Flickr8kYorubaDataset, filelist="tiny"),
+}
+
+
+def get_data_loaders(dataset_name, audio_features_type, teacher_model_name, batch_size):
+    MyDataset = DATASETS[dataset_name]
     train_loader = DataLoader(
-        Flickr8kDataset(
+        MyDataset(
             split="train",
             target_type=teacher_model_name,
             is_train=True,
@@ -455,7 +491,7 @@ def get_data_loaders(audio_features, teacher_model_name, batch_size):
         collate_fn=partial(pad_collate, dim=1),
     )
     valid_loader = DataLoader(
-        Flickr8kDataset(
+        MyDataset(
             split="dev",
             target_type=teacher_model_name,
             is_train=False,
@@ -492,6 +528,7 @@ def train(hparams):
     target_type, *_ = hparams["teacher-model-name"].split("-")
 
     train_loader, valid_loader = get_data_loaders(
+        hparams["dataset"],
         hparams["audio-features-type"],
         hparams["teacher-model-name"],
         hparams["batch-size"],
