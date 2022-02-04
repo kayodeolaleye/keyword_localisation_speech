@@ -238,7 +238,7 @@ AUDIO_MODELS = {
 AUDIO_FEATURES = {
     # fmt: off
     "mfcc": partial(extract_feature, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True),
-    "spectrogram": partial(extract_feature, feature="fbank", dim=256),
+    "spectrogram": partial(extract_feature, feature="fbank", dim=64, window_size=128, stride=32),
     # fmt: on
 }
 
