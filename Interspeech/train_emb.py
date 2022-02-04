@@ -460,14 +460,19 @@ class Flickr8kYorubaDataset(AudioDataset):
         return dict(load(file_transcript, parse_token))
 
     def get_audio_path(self, sample_name: KeyAudio):
-        return os.path.join(self.data_path, "wavs", sample_name.value + ".wav")
+        # Since there is a single speaker, the audio files are not suffixed
+        # with the speaker id, for example, "_0"
+        name = sample_name.to_key_image().value
+        return os.path.join(self.data_path, "wavs", name + ".wav")
 
     def get_image_path(self, sample_name: Union[KeyAudio, KeyImage]):
         return get_flickr_image_path(sample_name)
 
     def load_samples(self, filelist: str, split: Split) -> List[KeyAudio]:
-        path = os.path.join(self.data_path, "filelists", filelist + "-" + split + ".txt")
-        return load(path, lambda line: line.strip())
+        name = filelist + "-" + split + ".txt"
+        path = os.path.join(self.data_path, "filelists", name)
+        parse = lambda line: line.strip() + "_0"
+        return list(map(KeyAudio, load(path, parse)))
 
 
 DATASETS = {
