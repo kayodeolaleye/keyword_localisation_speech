@@ -358,9 +358,8 @@ class AudioDataset(ABC, Dataset):
     def get_audio_path(self, sample_name):
         pass
 
-    @abstractmethod
     def load_target(self, sample_name):
-        pass
+        raise NotImplemented
 
     def load_audio_features(self, sample_name):
         feature = AUDIO_FEATURES[self.audio_features_type](
