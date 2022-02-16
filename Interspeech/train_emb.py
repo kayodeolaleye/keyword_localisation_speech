@@ -91,6 +91,8 @@ HPARAMS: Dict[str, Any] = {
     "seed": 42,
     "weight-decay": 0.01,
     "log-wandb": True,
+    "log-train-freq": 16,
+    "log-valid-freq": 256,
 }
 
 # Constants
@@ -100,8 +102,8 @@ OUT_DIM = 512
 OUTPUT_DIR = "trained_models"
 
 
-def load_hparams(config_name: Optional[str]) -> Dict[str, Any]:
-    config_path = config_name and os.path.join("config-files", config_name + ".json")
+def load_hparams(config_name: Optional[str], base_path=".") -> Dict[str, Any]:
+    config_path = config_name and os.path.join(base_path, "config-files", config_name + ".json")
     if config_path and os.path.exists(config_path):
         with open(config_path, "r") as f:
             hparams = json.load(f)
@@ -273,18 +275,27 @@ class LabelsImageVGGLoader:
 
 class LabelsTextLoader:
     def __init__(self):
-        path_tran_dict = os.path.join(config.flickr8k_folder, "tran_dict.pkl")
-        with open(path_tran_dict, "rb") as f:
-            self.tran_dict = pickle.load(f)
+        # path_tran_dict = os.path.join(config.flickr8k_folder, "tran_dict.pkl")
+        # with open(path_tran_dict, "rb") as f:
+        #     self.tran_dict = pickle.load(f)
+        self.tran_dict = Flickr8kDataset.load_transcripts()
         self.vocab = get_keywords(config.keywords_fn)
 
     def __call__(self, sample_name: KeyAudio):
-        words = self.tran_dict[sample_name.value]
+        words = self.tran_dict[sample_name.value].lower().split()
         bow_vector = np.zeros(len(self.vocab)).astype("float32")
         for word in words:
             if word in self.vocab:
                 bow_vector[self.vocab[word]] = 1
         return bow_vector
+
+
+class DummyLoader:
+    def __init__(self):
+        pass
+
+    def __call__(self, *args, **kwargs):
+        return [0]
 
 
 class FeaturesImageCLIPLoader:
@@ -305,10 +316,10 @@ class FeaturesImageCLIPLoader:
 
 class FeaturesAudioCLIPLoader:
     def __init__(self, name, base_path=""):
-        path = os.path.join(base_path, f"output/{name}-flickr8k-test.npy")
-        self.pred = np.load(path)
-        samples = [s.value for s in Flickr8kDataset.load_samples("test")]
-        self.name_to_index = {n: i for i, n in enumerate(samples)}
+        path = os.path.join(base_path, f"output/{name}-flickr8k-test.npz")
+        data = np.load(path)
+        self.pred = data["pred"]
+        self.name_to_index = {n: i for i, n in enumerate(data["samples"])}
 
     def __call__(self, sample_name: KeyAudio):
         index = self.name_to_index[sample_name.value]
@@ -328,6 +339,7 @@ class FeaturesTextCLIPLoader:
 
 
 TARGET_LOADERS = {
+    "dummy": DummyLoader,
     "labels-image-vgg": LabelsImageVGGLoader,
     "labels-text": LabelsTextLoader,
     "features-image-clip": FeaturesImageCLIPLoader,
@@ -447,23 +459,23 @@ class Flickr8kYorubaDataset(AudioDataset):
         audio_features_type: str,
         is_train: bool,
     ):
-        assert target_type == "features-image-clip"
+        assert target_type in {"features-image-clip", "dummy"}, f"Target type {target_type} is not supported"
         super().__init__()
-        self.data_path = "data/flickr8k-yoruba"
+        self.data_path = "/home/doneata/data/flickr8k-yoruba"
         self.samples = self.load_samples(filelist, split)
         self.is_train = is_train
         self.load_target = TARGET_LOADERS[target_type]()
         self.audio_features_type = audio_features_type
 
     def load_transcripts(self):
-        file_transcript = os.path.join(self.data_path, "text")
+        file_transcript = os.path.join(self.data_path, "flickr8k.yo.txt")
         return dict(load(file_transcript, parse_token))
 
     def get_audio_path(self, sample_name: KeyAudio):
         # Since there is a single speaker, the audio files are not suffixed
         # with the speaker id, for example, "_0"
         name = sample_name.to_key_image().value
-        return os.path.join(self.data_path, "wavs", name + ".wav")
+        return os.path.join(self.data_path, "wavs-16khz", name + ".wav")
 
     def get_image_path(self, sample_name: Union[KeyAudio, KeyImage]):
         return get_flickr_image_path(sample_name)
@@ -478,33 +490,37 @@ class Flickr8kYorubaDataset(AudioDataset):
 DATASETS = {
     "flickr8k": Flickr8kDataset,
     "flickr8k-yoruba-tiny": partial(Flickr8kYorubaDataset, filelist="tiny"),
+    "flickr8k-yoruba-abuja": partial(Flickr8kYorubaDataset, filelist="abuja"),
 }
 
 
 def get_data_loaders(dataset_name, audio_features_type, teacher_model_name, batch_size):
     MyDataset = DATASETS[dataset_name]
+    train_dataset = MyDataset(
+        split="train",
+        target_type=teacher_model_name,
+        is_train=True,
+        audio_features_type=audio_features_type,
+    )
+    valid_dataset = MyDataset(
+        split="dev",
+        target_type=teacher_model_name,
+        is_train=False,
+        audio_features_type=audio_features_type,
+    )
     train_loader = DataLoader(
-        MyDataset(
-            split="train",
-            target_type=teacher_model_name,
-            is_train=True,
-            audio_features_type=audio_features_type,
-        ),
+        train_dataset,
         batch_size=batch_size,
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
     )
+    drop_last = len(valid_dataset) > batch_size
     valid_loader = DataLoader(
-        MyDataset(
-            split="dev",
-            target_type=teacher_model_name,
-            is_train=False,
-            audio_features_type=audio_features_type,
-        ),
+        valid_dataset,
         batch_size=batch_size,
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
-        drop_last=True,
+        drop_last=drop_last,
     )
     return train_loader, valid_loader
 
@@ -538,10 +554,10 @@ def train(hparams):
         hparams["batch-size"],
     )
 
-    B = hparams["batch-size"]
-    assert B <= 1024
-    LOG_TRAIN_FREQ = 256 * 16 // B
-    LOG_VALID_FREQ = 256 * 256 // B
+    # B = hparams["batch-size"]
+    # assert B <= 1024
+    # LOG_TRAIN_FREQ = 256 * 16 // B
+    # LOG_VALID_FREQ = 256 * 256 // B
 
     model = AUDIO_MODELS[hparams["audio-model-name"]](OUT_DIM)
     model.to(config.device)
@@ -607,7 +623,7 @@ def train(hparams):
         device=config.device,
     )
 
-    @trainer.on(Events.ITERATION_COMPLETED(every=LOG_TRAIN_FREQ))
+    @trainer.on(Events.ITERATION_COMPLETED(every=hparams["log-train-freq"]))
     def log_training_loss(trainer):
         print(
             "train · step: {:5d} ◇ loss: {:7.4f} · MI: {:7.4f}".format(
@@ -617,7 +633,7 @@ def train(hparams):
             )
         )
 
-    @trainer.on(Events.ITERATION_COMPLETED(every=LOG_VALID_FREQ))
+    @trainer.on(Events.ITERATION_COMPLETED(every=hparams["log-valid-freq"]))
     def log_validation_results(trainer):
         evaluator.run(valid_loader)
         metrics = evaluator.state.metrics
@@ -686,7 +702,7 @@ def train(hparams):
 
         wandb_logger.attach_output_handler(
             trainer,
-            event_name=Events.ITERATION_COMPLETED(every=LOG_TRAIN_FREQ),
+            event_name=Events.ITERATION_COMPLETED(every=hparams["log-train-freq"]),
             tag="training",
             output_transform=lambda loss: {
                 "loss": loss,

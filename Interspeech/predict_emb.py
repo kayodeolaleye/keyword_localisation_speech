@@ -4,14 +4,14 @@ import pdb
 
 from functools import partial
 from itertools import product
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import click
 import numpy as np
 import pandas as pd
 import tqdm
 
-from toolz import first, identity
+from toolz import first, second, identity
 
 import clip
 
@@ -31,6 +31,7 @@ from config import device
 
 from train_emb import (
     AUDIO_MODELS,
+    DATASETS,
     EMBED_SIZE,
     HPARAMS,
     OUTPUT_DIR,
@@ -92,12 +93,20 @@ def load_model_hparams(hparams):
 
 
 def predict(hparams: Dict[str, Any]):
-    output_path = "output/{}-flickr8k-test.npy".format(hparams["name"])
+    output_path = "output/{}-flickr8k-test.npz".format(hparams["name"])
 
     if os.path.exists(output_path):
         return
 
-    dataset = Flickr8kDataset(split="test", target_type="labels-text", is_train=False)
+    dataset_name = hparams["dataset-name"]
+    dataset = DATASETS[dataset_name](
+        split="test",
+        target_type="dummy",
+        is_train=False,
+        audio_features_type=hparams["audio-features-type"],
+    )
+    samples = [sample.value for sample in dataset.samples]
+
     loader = DataLoader(
         dataset,
         batch_size=BATCH_SIZE,
@@ -125,7 +134,7 @@ def predict(hparams: Dict[str, Any]):
     @evaluator.on(Events.EPOCH_COMPLETED)
     def save_results(engine):
         pred = np.vstack(engine.state.output)
-        np.save(output_path, pred)
+        np.savez(output_path, pred=pred, samples=samples)
 
     evaluator.run(loader)
 
@@ -180,21 +189,15 @@ def eval_batch(model):
 
     evaluator.run(loader)
     metrics = evaluator.state.metrics
+    # fmt: off
     print("loss:               {:6.3f} ".format(metrics["loss"]))
-    print(
-        "mutual information: {:6.3f} ".format(
-            get_mutual_information(metrics["loss"], BATCH_SIZE)
-        )
-    )
+    print("mutual information: {:6.3f} ".format(get_mutual_information(metrics["loss"], BATCH_SIZE)))
     print("accuracy:           {:6.3f}%".format(metrics["accuracy"] * 100))
     print()
+    # fmt: on
 
 
-def eval_keyword_spotting(config_name):
-    samples = Flickr8kDataset.load_samples("test")
-    labels_loader = LabelsTextLoader()
-
-    vocab = labels_loader.vocab
+def compute_keyword_spotting_scores(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
     id_to_word = {i: w for w, i in vocab.items()}
     words = [id_to_word[i] for i in range(len(vocab))]
 
@@ -216,11 +219,25 @@ def eval_keyword_spotting(config_name):
     audio_features = torch.vstack([torch.tensor(audio_loader(s)) for s in samples])
     audio_features = audio_features / audio_features.norm(dim=-1, keepdim=True)
 
-    # compare
-    similarity = audio_features @ text_features.T
+    return audio_features @ text_features.T
+
+
+def eval_keyword_spotting(dataset, config_name):
+    samples = dataset.samples
+    labels_loader = LabelsTextLoader()
+    vocab = labels_loader.vocab
+
+    scores = compute_keyword_spotting_scores(config_name, vocab, samples)
     labels = np.vstack([labels_loader(s) for s in samples])
 
-    return 100 * average_precision_score(labels, similarity)
+    ap = 100 * average_precision_score(labels, scores)
+    word_ap = [
+        (word, 100 * average_precision_score(labels[:, i], scores[:, i]))
+        for word, i in vocab.items()
+    ]
+    pdb.set_trace()
+
+    return ap, word_ap
 
 
 LOADERS = {
@@ -228,19 +245,25 @@ LOADERS = {
     "text": FeaturesTextCLIPLoader,
 }
 
-for b in [64, 128, 256]:
-    for l in ["", "-lr-2e-4"]:
-        name = f"batch-size-{b}{l}"
+# for b in [64, 128, 256]:
+#     for l in ["", "-lr-2e-4"]:
+#         name = f"batch-size-{b}{l}"
+#         LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
+
+for config in os.listdir("config-files"):
+    name, ext = os.path.splitext(config)
+    if ext == ".json":
         LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
+
 
 
 MODALITIES = ["audio", "image", "text"]
 
 
-def load_data_retrieval(src, tgt):
+def load_data_retrieval(dataset, src, tgt):
 
-    src_samples = Flickr8kDataset.load_samples("test")
-    tgt_samples = Flickr8kDataset.load_samples("test")
+    src_samples = dataset.load_samples("test")
+    tgt_samples = dataset.load_samples("test")
 
     def keys_audio_to_image(keys):
         values = [k.to_key_image().value for k in keys]
@@ -290,41 +313,60 @@ def evaluate_retrieval(src_samples, tgt_samples, sim, are_same):
     }
 
 
-# @click.command()
-# @click.option("--model", "model_path", type=click.Path(exists=True))
-# @click.option("--to-store", "to_store_predictions", is_flag=True)
 @click.command()
 @click.option("--config", "config_name")
-def main(config_name):
+@click.option("--to-eval-retrieval", "to_eval_retrieval", is_flag=True)
+@click.option("--to-eval-keyword-spotting", "to_eval_keyword_spotting", is_flag=True)
+def main(config_name, to_eval_retrieval, to_eval_keyword_spotting):
     # predict and store predictions
     hparams = load_hparams(config_name)
     print(json.dumps(hparams, indent=4))
     output = predict(hparams)
 
-    # evaluate retrieval
-    audio_modality = f"audio-{config_name}"
-    modalities = [audio_modality, "image", "text"]
-    results = {
-        "`{:5s} → {:5s}`".format(
-            src.split("-")[0],
-            tgt.split("-")[0]
-        ): evaluate_retrieval(*load_data_retrieval(src, tgt))
-        for src, tgt in product(modalities, modalities)
-        if src != tgt and (src == audio_modality or tgt == audio_modality)
-    }
+    dataset_name = hparams["dataset-name"]
+    dataset = DATASETS[dataset_name](
+        split="test",
+        target_type="dummy",
+        is_train=False,
+        audio_features_type=hparams["audio-features-type"],
+    )
 
-    df = pd.DataFrame(results)
-    kwargs = {
-        "floatfmt": ".1f",
-        "tablefmt": "github",
-    }
-    print(df.transpose().to_markdown(**kwargs))
+    if to_eval_retrieval:
+        audio_modality = f"audio-{config_name}"
+        modalities = [audio_modality, "image", "text"]
+        results = {
+            "`{:5s} → {:5s}`".format(
+                src.split("-")[0], tgt.split("-")[0]
+            ): evaluate_retrieval(*load_data_retrieval(dataset, src, tgt))
+            for src, tgt in product(modalities, modalities)
+            if src != tgt and (src == audio_modality or tgt == audio_modality)
+        }
 
-    # evaluate keyword spotting (audio–text)
-    ap = eval_keyword_spotting(config_name)
+        df = pd.DataFrame(results)
+        kwargs = {
+            "floatfmt": ".1f",
+            "tablefmt": "github",
+        }
+        print(df.transpose().to_markdown(**kwargs))
 
-    print("sheets →", config_name, ap, " ".join([str(v) for v in df.unstack().values]))
-    print()
+    if to_eval_keyword_spotting:
+        # is there a particular keyword in the audio?
+        mean_ap, word_ap = eval_keyword_spotting(dataset, config_name)
+        for word, ap in word_ap:
+            print("{:10s} {:5.2f}%".format(word, ap))
+        print("{:10s} {:5.2f}%".format("mean", mean_ap))
+        print()
+
+        # to copy-paste in the google sheets
+        s = lambda x: "{:.2f}".format(x)
+        ap_all = [mean_ap] + list(map(second, word_ap))
+        print(" ".join(map(s, ap_all)))
+
+    if to_eval_retrieval and to_eval_keyword_spotting:
+        print(
+            "sheets →", config_name, ap, " ".join([str(v) for v in df.unstack().values])
+        )
+        print()
 
     # TODO evaluate mutual information (audio–images)
     # if not model_path:
