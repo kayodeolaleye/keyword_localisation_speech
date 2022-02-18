@@ -70,18 +70,18 @@ def get_model_path(audio_model_name, teacher_model_name):
     return path
 
 
-def load_model(audio_model_name, model_path):
-    model = AUDIO_MODELS[audio_model_name](OUT_DIM)
-    model.load_state_dict(torch.load(model_path)["model"])
-    model.to(device)
-    return model
+# def load_model(audio_model_name, model_path):
+#     model = AUDIO_MODELS[audio_model_name](OUT_DIM)
+#     model.load_state_dict(torch.load(model_path)["model"])
+#     model.to(device)
+#     return model
 
 
 def load_model_hparams(hparams):
     output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
     prefix = "model"
 
-    model = AUDIO_MODELS[hparams["audio-model-name"]](OUT_DIM)
+    model = AUDIO_MODELS[hparams["audio-model-name"]](hparams["audio-features-size"], OUT_DIM)
     files = [f for f in os.listdir(output_dir) if f.startswith(prefix)]
 
     model_path = os.path.join(output_dir, sorted(files)[-1])
@@ -102,8 +102,9 @@ def predict(hparams: Dict[str, Any]):
     dataset = DATASETS[dataset_name](
         split="test",
         target_type="dummy",
-        is_train=False,
         audio_features_type=hparams["audio-features-type"],
+        to_normalize_audio_features=hparams["audio-features-to-normalize"],
+        is_train=False,
     )
     samples = [sample.value for sample in dataset.samples]
 
@@ -235,7 +236,6 @@ def eval_keyword_spotting(dataset, config_name):
         (word, 100 * average_precision_score(labels[:, i], scores[:, i]))
         for word, i in vocab.items()
     ]
-    pdb.set_trace()
 
     return ap, word_ap
 
@@ -327,8 +327,9 @@ def main(config_name, to_eval_retrieval, to_eval_keyword_spotting):
     dataset = DATASETS[dataset_name](
         split="test",
         target_type="dummy",
-        is_train=False,
         audio_features_type=hparams["audio-features-type"],
+        to_normalize_audio_features=hparams["audio-features-to-normalize"],
+        is_train=False,
     )
 
     if to_eval_retrieval:

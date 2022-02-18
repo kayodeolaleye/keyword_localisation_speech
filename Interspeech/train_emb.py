@@ -29,10 +29,10 @@ from dataclasses import dataclass
 from itertools import groupby
 from functools import partial
 from socket import gethostname
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 import click  # type: ignore
-
+import librosa
 import numpy as np
 
 import torch
@@ -66,6 +66,9 @@ from toolz.dicttoolz import merge
 
 from clip.model import Transformer  # type: ignore
 
+from transformers import Wav2Vec2Processor, Wav2Vec2Model, Wav2Vec2FeatureExtractor
+# from transformers import AutoProcessor, AutoModelForPreTraining
+
 import config
 from data_gen import spec_augment
 from utils import extract_feature, get_soft_tags, get_keywords, get_tran_dict
@@ -80,6 +83,8 @@ TeacherType = Literal["labels-image-vgg", "labels-text", "features-image-clip"]
 HPARAMS: Dict[str, Any] = {
     # "name": "{:032x}".format(random.getrandbits(128)),
     "audio-features-type": "mfcc",
+    "audio-features-size": 39,
+    "audio-features-to-normalize": True,
     "audio-model-name": "cnn-transformer",
     "dataset-name": "flickr8k",
     "teacher-model-name": "features-image-clip",
@@ -153,12 +158,12 @@ class AudioCLIP(ABC, torch.nn.Module):
 
 
 class CNNTransformer(AudioCLIP):
-    def __init__(self, embed_dim=512, **kwargs):
+    def __init__(self, input_dim, embed_dim=512, **kwargs):
         super().__init__()
         # Convolutional module
         width = 128
         self.conv = torch.nn.Sequential(
-            torch.nn.Conv1d(39, 96, 9, 2, 4),
+            torch.nn.Conv1d(input_dim, 96, 9, 2, 4),
             torch.nn.ReLU(),
             torch.nn.Conv1d(96, 96, 11, 1, 5),
             torch.nn.ReLU(),
@@ -231,6 +236,41 @@ class Resnet(AudioCLIP):
         return x
 
 
+class Wav2Vec2Extractor:
+    def __init__(self, name):
+        # self.processor = Wav2Vec2Processor.from_pretrained(f"facebook/wav2vec2-base-960h")
+        self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(f"facebook/wav2vec2-{name}")
+        self.model = Wav2Vec2Model.from_pretrained(f"facebook/wav2vec2-{name}")
+        self.cache_dir = f"output/features-audio-wav2vec2-{name}"
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+    def _get_cache_path(self, audio_file):
+        _, file_name = os.path.split(audio_file)
+        name, _ = os.path.splitext(file_name)
+        return os.path.join(self.cache_dir, name + ".npy")
+
+    def __call__(self, input_file, sr=16_000):
+        cache_path = self._get_cache_path(input_file)
+
+        if os.path.exists(cache_path):
+            return np.load(cache_path)
+
+        y, sr = librosa.load(input_file, sr=sr)
+        yt, _ = librosa.effects.trim(y, top_db=20)
+
+        # inputs = self.processor(yt, sampling_rate=sr, return_tensors="pt")
+        inputs = self.feature_extractor(raw_speech=yt, sampling_rate=sr, return_tensors="pt")
+        with torch.no_grad():
+            output = self.model(**inputs)
+            output = output.extract_features
+            output = output.squeeze(0)
+            output = output.cpu().numpy()
+
+        np.save(cache_path, output)
+
+        return output
+
+
 AUDIO_MODELS = {
     "cnn-transformer": CNNTransformer,
     "resnet18": partial(Resnet, num_layers=18, pretrained=False),
@@ -240,10 +280,13 @@ AUDIO_MODELS = {
 
 AUDIO_FEATURES = {
     # fmt: off
-    "mfcc": partial(extract_feature, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True),
-    "spectrogram": partial(extract_feature, feature="fbank", dim=64, window_size=128, stride=32),
+    "mfcc": lambda: partial(extract_feature, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True),
+    "spectrogram": lambda: partial(extract_feature, feature="fbank", dim=64, window_size=128, stride=32),
+    "wav2vec2-base-960": lambda: Wav2Vec2Extractor("base-960h"),
+    "wav2vec2-large-xlsr-53": lambda: Wav2Vec2Extractor("large-xlsr-53"),
     # fmt: on
-}
+}  # type: Dict[str, Callable[[], Callable]]
+# wrap in audio extractors in function to defer loading of models
 
 
 def pad_tensor(vec, pad, dim):
@@ -360,10 +403,11 @@ def get_flickr_image_path(sample_name: Union[KeyAudio, KeyImage]):
 
 
 class AudioDataset(ABC, Dataset):
-    def __init__(self):
+    def __init__(self, features_type, to_normalize, is_train=False):
         super().__init__()
-        self.audio_features_type = "mfcc"
-        self.is_train = False
+        self.feature_extractor = AUDIO_FEATURES[features_type]()
+        self.to_normalize = to_normalize
+        self.is_train = is_train
         self.samples = []
 
     @abstractmethod
@@ -374,10 +418,9 @@ class AudioDataset(ABC, Dataset):
         raise NotImplemented
 
     def load_audio_features(self, sample_name):
-        feature = AUDIO_FEATURES[self.audio_features_type](
-            input_file=self.get_audio_path(sample_name)
-        )
-        feature = (feature - feature.mean()) / feature.std()
+        feature = self.feature_extractor(input_file=self.get_audio_path(sample_name))
+        if self.to_normalize:
+            feature = (feature - feature.mean()) / feature.std()
         if self.is_train:
             feature = spec_augment(feature)
         return feature
@@ -404,12 +447,11 @@ class Flickr8kDataset(AudioDataset):
         target_type: TeacherType,
         audio_features_type: str,
         is_train: bool,
+        to_normalize_audio_features: bool,
     ):
-        super().__init__()
+        super().__init__(audio_features_type, to_normalize_audio_features, is_train)
         self.samples = self.load_samples(split)
-        self.is_train = is_train
         self.load_target = TARGET_LOADERS[target_type]()
-        self.audio_features_type = audio_features_type
 
     @staticmethod
     def load_transcripts():
@@ -458,14 +500,13 @@ class Flickr8kYorubaDataset(AudioDataset):
         target_type: TeacherType,
         audio_features_type: str,
         is_train: bool,
+        to_normalize_audio_features: bool,
     ):
         assert target_type in {"features-image-clip", "dummy"}, f"Target type {target_type} is not supported"
-        super().__init__()
+        super().__init__(audio_features_type, to_normalize_audio_features, is_train)
         self.data_path = "/home/doneata/data/flickr8k-yoruba"
         self.samples = self.load_samples(filelist, split)
-        self.is_train = is_train
         self.load_target = TARGET_LOADERS[target_type]()
-        self.audio_features_type = audio_features_type
 
     def load_transcripts(self):
         file_transcript = os.path.join(self.data_path, "flickr8k.yo.txt")
@@ -494,30 +535,32 @@ DATASETS = {
 }
 
 
-def get_data_loaders(dataset_name, audio_features_type, teacher_model_name, batch_size):
-    MyDataset = DATASETS[dataset_name]
+def get_data_loaders(config):
+    MyDataset = DATASETS[config["dataset-name"]]
     train_dataset = MyDataset(
         split="train",
-        target_type=teacher_model_name,
+        target_type=config["teacher-model-name"],
+        audio_features_type=config["audio-features-type"],
+        to_normalize_audio_features=config["audio-features-to-normalize"],
         is_train=True,
-        audio_features_type=audio_features_type,
     )
     valid_dataset = MyDataset(
         split="dev",
-        target_type=teacher_model_name,
+        target_type=config["teacher-model-name"],
+        audio_features_type=config["audio-features-type"],
+        to_normalize_audio_features=config["audio-features-to-normalize"],
         is_train=False,
-        audio_features_type=audio_features_type,
     )
     train_loader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
+        batch_size=config["batch-size"],
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
     )
-    drop_last = len(valid_dataset) > batch_size
+    drop_last = len(valid_dataset) > config["batch-size"]
     valid_loader = DataLoader(
         valid_dataset,
-        batch_size=batch_size,
+        batch_size=config["batch-size"],
         shuffle=True,
         collate_fn=partial(pad_collate, dim=1),
         drop_last=drop_last,
@@ -546,20 +589,14 @@ def train(hparams):
     torch.manual_seed(hparams["seed"])
 
     target_type, *_ = hparams["teacher-model-name"].split("-")
-
-    train_loader, valid_loader = get_data_loaders(
-        hparams["dataset-name"],
-        hparams["audio-features-type"],
-        hparams["teacher-model-name"],
-        hparams["batch-size"],
-    )
+    train_loader, valid_loader = get_data_loaders(hparams)
 
     # B = hparams["batch-size"]
     # assert B <= 1024
     # LOG_TRAIN_FREQ = 256 * 16 // B
     # LOG_VALID_FREQ = 256 * 256 // B
 
-    model = AUDIO_MODELS[hparams["audio-model-name"]](OUT_DIM)
+    model = AUDIO_MODELS[hparams["audio-model-name"]](hparams["audio-features-size"], OUT_DIM)
     model.to(config.device)
 
     if hparams.get("checkpoint-path"):
