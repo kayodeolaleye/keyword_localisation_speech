@@ -1,0 +1,6 @@
+{
+    "log-wandb": true,
+    "audio-features-type": "spectrogram",
+    "audio-model-name": "resnet18-pretrained",
+    "batch-size": 64
+}

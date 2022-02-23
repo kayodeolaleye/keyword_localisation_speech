@@ -1,0 +1,7 @@
+{
+    "batch-size": 256,
+    "dataset-name": "flickr8k-yoruba-abuja",
+    "num-gradient-steps": 10000,
+    "log-wandb": true,
+    "log-valid-freq": 64
+}

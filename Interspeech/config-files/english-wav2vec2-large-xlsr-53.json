@@ -1,0 +1,10 @@
+{
+    "audio-features-type": "wav2vec2-large-xlsr-53",
+    "audio-features-size": 512,
+    "audio-features-to-normalize": false,
+    "batch-size": 256,
+    "dataset-name": "flickr8k",
+    "num-gradient-steps": 10000,
+    "log-valid-freq": 64,
+    "log-wandb": true
+}

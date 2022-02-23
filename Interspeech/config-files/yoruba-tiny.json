@@ -1,0 +1,5 @@
+{
+    "batch-size": 4,
+    "dataset-name": "flickr8k-yoruba-tiny",
+    "log-wandb": false
+}

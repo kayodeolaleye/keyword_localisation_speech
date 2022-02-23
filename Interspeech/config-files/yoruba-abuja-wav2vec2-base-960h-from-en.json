@@ -1,0 +1,11 @@
+{
+    "audio-features-type": "wav2vec2-base-960",
+    "audio-features-size": 512,
+    "audio-features-to-normalize": false,
+    "batch-size": 256,
+    "dataset-name": "flickr8k-yoruba-abuja",
+    "num-gradient-steps": 10000,
+    "log-wandb": true,
+    "log-valid-freq": 64,
+    "checkpoint-path": "trained_models/english-wav2vec2-base-960h/model_checkpoint_2.6754.pt"
+}
