@@ -237,11 +237,11 @@ class Resnet(AudioCLIP):
 
 
 class Wav2Vec2Extractor:
-    def __init__(self, name):
+    def __init__(self, name, dataset):
         # self.processor = Wav2Vec2Processor.from_pretrained(f"facebook/wav2vec2-base-960h")
         self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(f"facebook/wav2vec2-{name}")
         self.model = Wav2Vec2Model.from_pretrained(f"facebook/wav2vec2-{name}")
-        self.cache_dir = f"output/features-audio-wav2vec2-{name}"
+        self.cache_dir = f"output/features-audio-{dataset}-wav2vec2-{name}"
         os.makedirs(self.cache_dir, exist_ok=True)
 
     def _get_cache_path(self, audio_file):
@@ -280,10 +280,10 @@ AUDIO_MODELS = {
 
 AUDIO_FEATURES = {
     # fmt: off
-    "mfcc": lambda: partial(extract_feature, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True),
-    "spectrogram": lambda: partial(extract_feature, feature="fbank", dim=64, window_size=128, stride=32),
-    "wav2vec2-base-960": lambda: Wav2Vec2Extractor("base-960h"),
-    "wav2vec2-large-xlsr-53": lambda: Wav2Vec2Extractor("large-xlsr-53"),
+    "mfcc": lambda **kwargs: partial(extract_feature, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True),
+    "spectrogram": lambda **kwargs: partial(extract_feature, feature="fbank", dim=64, window_size=128, stride=32),
+    "wav2vec2-base-960": lambda **kwargs: Wav2Vec2Extractor("base-960h", **kwargs),
+    "wav2vec2-large-xlsr-53": lambda **kwargs: Wav2Vec2Extractor("large-xlsr-53", **kwargs),
     # fmt: on
 }  # type: Dict[str, Callable[[], Callable]]
 # wrap in audio extractors in function to defer loading of models
@@ -403,9 +403,9 @@ def get_flickr_image_path(sample_name: Union[KeyAudio, KeyImage]):
 
 
 class AudioDataset(ABC, Dataset):
-    def __init__(self, features_type, to_normalize, is_train=False):
+    def __init__(self, features_type, to_normalize, language, is_train=False):
         super().__init__()
-        self.feature_extractor = AUDIO_FEATURES[features_type]()
+        self.feature_extractor = AUDIO_FEATURES[features_type](dataset=language)
         self.to_normalize = to_normalize
         self.is_train = is_train
         self.samples = []
@@ -449,7 +449,7 @@ class Flickr8kDataset(AudioDataset):
         is_train: bool,
         to_normalize_audio_features: bool,
     ):
-        super().__init__(audio_features_type, to_normalize_audio_features, is_train)
+        super().__init__(audio_features_type, to_normalize_audio_features, "english", is_train)
         self.samples = self.load_samples(split)
         self.load_target = TARGET_LOADERS[target_type]()
 
@@ -503,7 +503,7 @@ class Flickr8kYorubaDataset(AudioDataset):
         to_normalize_audio_features: bool,
     ):
         assert target_type in {"features-image-clip", "dummy"}, f"Target type {target_type} is not supported"
-        super().__init__(audio_features_type, to_normalize_audio_features, is_train)
+        super().__init__(audio_features_type, to_normalize_audio_features, "yoruba", is_train)
         self.data_path = "/home/doneata/data/flickr8k-yoruba"
         self.samples = self.load_samples(filelist, split)
         self.load_target = TARGET_LOADERS[target_type]()
