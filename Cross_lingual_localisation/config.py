@@ -28,6 +28,7 @@ wav_to_spk_fn = path.join(flickr8k_audio_dir, "wav2spk.txt")
 flickr8k_ctm_fn = path.join(flickr8k_audio_dir, "flickr_8k.ctm")
 soft_tags_fn = path.join(flickr8k_folder, "flickr8k.tags.all.txt") # path to Herman's soft tags
 keywords_fn = path.join(flickr8k_folder, "keywords.8.txt")
+flickr8k_audio_yor_dir = path.join(BASE_DIR, "Flickr8k_Yoruba_v1")
 
 
 # Model path
