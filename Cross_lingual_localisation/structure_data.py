@@ -62,4 +62,4 @@ if __name__== "__main__":
 
 
 
-# python structure_data.py
+#TODO: pass Speaker ID as a command line argument 
