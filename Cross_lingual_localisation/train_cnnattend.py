@@ -18,7 +18,7 @@ def train_net(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type + "_" + str(args.data_size)
+    model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type
     print("Model ID: ", model_id)
     model_path = path.join(trained_model_dir, model_id)
     ensure_folder(model_path)
@@ -53,9 +53,9 @@ def train_net(args):
     logger = get_logger()
 
     # Custom dataloaders
-    train_dataset = Flickr8kDataset('train', args.data_size)
+    train_dataset = Flickr8kDataset('train')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=True, num_workers=num_workers)
-    valid_dataset = Flickr8kDataset('dev', 100) # use all the available dev set
+    valid_dataset = Flickr8kDataset('dev') # use all the available dev set
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False, num_workers=num_workers)
 
     # Epochs

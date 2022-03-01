@@ -9,14 +9,12 @@ from torch.utils.data.dataloader import default_collate
 from config import pickle_file, input_dim, num_workers, tran_folder, soft_tags_fn
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, subset, size):
+    def __init__(self, subset):
         with open(pickle_file, 'rb') as file:
             data = pickle.load(file)
         # self.vocab = data['VOCAB']
-        self.samples_full = data[subset]
-        self.samples = [self.samples_full[i] for i in range(int(size * len(self.samples_full) / 100))]
+        self.samples = data[subset]
         # self.args = args
-        print("Loading {} {} full samples...".format(len(self.samples_full), subset))
         print("Loading {} {} samples...".format(len(self.samples), subset))
 
     def __getitem__(self, i):

@@ -34,7 +34,6 @@ def parse_args():
     parser.add_argument('--val_threshold', type=float, help='threshold to use during validation')
     parser.add_argument('--embed_size', default=1024, type=int, help='embedding dimension / dimension of the convolutional feature')
     parser.add_argument('--vocab_size', default=67, type=int, help='Size of speech corpus vocabulary')
-    parser.add_argument('--data_size', default=100, type=int, help='Quantity of speech corpus to use during training in percentage')
     parser.add_argument("--seed", default=42, type=int, help='initialize the random number generator')
 
     args = parser.parse_args()
@@ -171,9 +170,9 @@ def extract_feature(
     save_feature=None):
 
     y, sr = librosa.load(input_file, sr=sr)
-    # yt, _ = librosa.effects.trim(y, top_db=20) # remove sound trimming
-    # yt = normalize(yt)
-    yt = normalize(y)
+    yt, _ = librosa.effects.trim(y, top_db=20) # remove sound trimming during testing
+    yt = normalize(yt)
+    # yt = normalize(y)
     yt = preemphasis(yt, preemph_coef)
     ws = int(sr * 0.001 * window_size)
     st = int(sr * 0.001 * stride)
