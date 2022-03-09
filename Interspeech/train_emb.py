@@ -109,7 +109,7 @@ OUTPUT_DIR = "trained_models"
 
 def load_hparams(config_name: Optional[str], base_path=".") -> Dict[str, Any]:
     config_path = config_name and os.path.join(base_path, "config-files", config_name + ".json")
-    if config_path and os.path.exists(config_path):
+    if config_path:
         with open(config_path, "r") as f:
             hparams = json.load(f)
         hparams["name"] = config_name
