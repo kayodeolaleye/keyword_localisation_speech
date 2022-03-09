@@ -67,6 +67,7 @@ from toolz.dicttoolz import merge
 from clip.model import Transformer  # type: ignore
 
 from transformers import Wav2Vec2Processor, Wav2Vec2Model, Wav2Vec2FeatureExtractor
+
 # from transformers import AutoProcessor, AutoModelForPreTraining
 
 import config
@@ -108,7 +109,9 @@ OUTPUT_DIR = "trained_models"
 
 
 def load_hparams(config_name: Optional[str], base_path=".") -> Dict[str, Any]:
-    config_path = config_name and os.path.join(base_path, "config-files", config_name + ".json")
+    config_path = config_name and os.path.join(
+        base_path, "config-files", config_name + ".json"
+    )
     if config_path:
         with open(config_path, "r") as f:
             hparams = json.load(f)
@@ -138,6 +141,24 @@ class KeyAudio:
 Key = Union[KeyImage, KeyAudio]
 
 
+def make_cnn_encoder(input_dim, output_dim):
+    return torch.nn.Sequential(
+        torch.nn.Conv1d(input_dim, 96, 9, 2, 4),
+        torch.nn.ReLU(),
+        torch.nn.Conv1d(96, 96, 11, 1, 5),
+        torch.nn.ReLU(),
+        torch.nn.Conv1d(96, 96, 11, 2, 5),
+        torch.nn.ReLU(),
+        torch.nn.Conv1d(96, 96, 11, 1, 5),
+        torch.nn.ReLU(),
+        torch.nn.Conv1d(96, 96, 11, 2, 5),
+        torch.nn.ReLU(),
+        torch.nn.Conv1d(96, 96, 11, 1, 5),
+        torch.nn.ReLU(),
+        torch.nn.Conv1d(96, output_dim, 11, 2, 5),
+    )
+
+
 class AudioCLIP(ABC, torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -157,26 +178,11 @@ class AudioCLIP(ABC, torch.nn.Module):
         return logits
 
 
-class CNNTransformer(AudioCLIP):
+class CNNTransformerCLIP(AudioCLIP):
     def __init__(self, input_dim, embed_dim=512, **kwargs):
         super().__init__()
-        # Convolutional module
         width = 128
-        self.conv = torch.nn.Sequential(
-            torch.nn.Conv1d(input_dim, 96, 9, 2, 4),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(96, 96, 11, 1, 5),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(96, 96, 11, 2, 5),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(96, 96, 11, 1, 5),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(96, 96, 11, 2, 5),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(96, 96, 11, 1, 5),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(96, width, 11, 2, 5),
-        )
+        self.conv = make_cnn_encoder(input_dim, width)
         self.transformer = Transformer(width=width, layers=8, heads=4)
         self.ln_final = torch.nn.LayerNorm(width)
         self.proj = torch.nn.Linear(width, embed_dim)
@@ -191,7 +197,7 @@ class CNNTransformer(AudioCLIP):
         return x
 
 
-class Resnet(AudioCLIP):
+class ResnetCLIP(AudioCLIP):
     def __init__(self, embed_dim, num_layers, pretrained):
         super().__init__()
         assert num_layers == 18
@@ -236,10 +242,31 @@ class Resnet(AudioCLIP):
         return x
 
 
+class CNNTransformerClf(torch.nn.Module):
+    def __init__(self, input_dim, num_classes, **kwargs):
+        super().__init__()
+        width = 128
+        self.conv = make_cnn_encoder(input_dim, width)
+        self.transformer = Transformer(width=width, layers=8, heads=4)
+        self.ln_final = torch.nn.LayerNorm(width)
+        self.proj = torch.nn.Linear(width, num_classes)
+
+    def forward(self, audio):
+        x = self.conv(audio)
+        x = x.permute(2, 0, 1)  # BDT → TBD
+        x = self.transformer(x)
+        x = x.permute(1, 2, 0)  # TBD → BDT
+        x = self.ln_final(x[:, :, 0])
+        x = self.proj(x)
+        return x
+
+
 class Wav2Vec2Extractor:
     def __init__(self, name, dataset):
         # self.processor = Wav2Vec2Processor.from_pretrained(f"facebook/wav2vec2-base-960h")
-        self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(f"facebook/wav2vec2-{name}")
+        self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
+            f"facebook/wav2vec2-{name}"
+        )
         self.model = Wav2Vec2Model.from_pretrained(f"facebook/wav2vec2-{name}")
         self.cache_dir = f"output/features-audio-{dataset}-wav2vec2-{name}"
         os.makedirs(self.cache_dir, exist_ok=True)
@@ -259,7 +286,9 @@ class Wav2Vec2Extractor:
         yt, _ = librosa.effects.trim(y, top_db=20)
 
         # inputs = self.processor(yt, sampling_rate=sr, return_tensors="pt")
-        inputs = self.feature_extractor(raw_speech=yt, sampling_rate=sr, return_tensors="pt")
+        inputs = self.feature_extractor(
+            raw_speech=yt, sampling_rate=sr, return_tensors="pt"
+        )
         with torch.no_grad():
             output = self.model(**inputs)
             output = output.extract_features
@@ -272,9 +301,10 @@ class Wav2Vec2Extractor:
 
 
 AUDIO_MODELS = {
-    "cnn-transformer": CNNTransformer,
-    "resnet18": partial(Resnet, num_layers=18, pretrained=False),
-    "resnet18-pretrained": partial(Resnet, num_layers=18, pretrained=True),
+    "cnn-transformer": CNNTransformerCLIP,
+    "resnet18": partial(ResnetCLIP, num_layers=18, pretrained=False),
+    "resnet18-pretrained": partial(ResnetCLIP, num_layers=18, pretrained=True),
+    "cnn-transformer-clf": CNNTransformerClf,
 }
 
 
@@ -308,11 +338,9 @@ class LabelsImageVGGLoader:
         self.vocab = get_keywords(config.keywords_fn)
 
     def __call__(self, sample_name):
+        key = sample_name.to_key_image().value
         return np.array(
-            [
-                self.soft_tags_dict[sample_name[:-2]][self.vocab_soft_all[word]]
-                for word in self.vocab
-            ]
+            [self.soft_tags_dict[key][self.vocab_soft_all[word]] for word in self.vocab]
         )
 
 
@@ -449,7 +477,9 @@ class Flickr8kDataset(AudioDataset):
         is_train: bool,
         to_normalize_audio_features: bool,
     ):
-        super().__init__(audio_features_type, to_normalize_audio_features, "english", is_train)
+        super().__init__(
+            audio_features_type, to_normalize_audio_features, "english", is_train
+        )
         self.samples = self.load_samples(split)
         self.load_target = TARGET_LOADERS[target_type]()
 
@@ -502,8 +532,13 @@ class Flickr8kYorubaDataset(AudioDataset):
         is_train: bool,
         to_normalize_audio_features: bool,
     ):
-        assert target_type in {"features-image-clip", "dummy"}, f"Target type {target_type} is not supported"
-        super().__init__(audio_features_type, to_normalize_audio_features, "yoruba", is_train)
+        assert target_type in {
+            "features-image-clip",
+            "dummy",
+        }, f"Target type {target_type} is not supported"
+        super().__init__(
+            audio_features_type, to_normalize_audio_features, "yoruba", is_train
+        )
         self.data_path = "/home/doneata/data/flickr8k-yoruba"
         self.samples = self.load_samples(filelist, split)
         self.load_target = TARGET_LOADERS[target_type]()
@@ -582,27 +617,13 @@ def get_mutual_information(loss, batch_size):
     return np.log(batch_size) - loss
 
 
-def train(hparams):
-    # Fix random seed
-    random.seed(hparams["seed"])
-    np.random.seed(hparams["seed"])
-    torch.manual_seed(hparams["seed"])
+def set_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
-    target_type, *_ = hparams["teacher-model-name"].split("-")
-    train_loader, valid_loader = get_data_loaders(hparams)
 
-    # B = hparams["batch-size"]
-    # assert B <= 1024
-    # LOG_TRAIN_FREQ = 256 * 16 // B
-    # LOG_VALID_FREQ = 256 * 256 // B
-
-    model = AUDIO_MODELS[hparams["audio-model-name"]](hparams["audio-features-size"], OUT_DIM)
-    model.to(config.device)
-
-    if hparams.get("checkpoint-path"):
-        checkpoint = torch.load(hparams["checkpoint-path"])
-        model.load_state_dict(checkpoint["model"])
-
+def get_optimizer(model, *, lr, weight_decay):
     named_parameters = list(model.named_parameters())
 
     def is_gain_or_bias(name):
@@ -626,16 +647,38 @@ def train(hparams):
     ]
     group_params = [
         {"params": params_gain_or_bias, "weight_decay": 0.0},
-        {"params": params_other, "weight_decay": hparams["weight-decay"]},
+        {"params": params_other, "weight_decay": weight_decay},
     ]
-    optimizer = torch.optim.AdamW(group_params, lr=hparams["lr"])
+    return torch.optim.AdamW(group_params, lr=lr)
+
+
+def train_clip(hparams):
+    set_random_seed(hparams["seed"])
+
+    # B = hparams["batch-size"]
+    # assert B <= 1024
+    # LOG_TRAIN_FREQ = 256 * 16 // B
+    # LOG_VALID_FREQ = 256 * 256 // B
+
+    train_loader, valid_loader = get_data_loaders(hparams)
+
+    model = AUDIO_MODELS[hparams["audio-model-name"]](
+        hparams["audio-features-size"], OUT_DIM
+    )  # TODO
+    model.to(config.device)
+
+    if hparams.get("checkpoint-path"):
+        checkpoint = torch.load(hparams["checkpoint-path"])
+        model.load_state_dict(checkpoint["model"])
+
+    optimizer = get_optimizer(
+        model, lr=hparams["lr"], weight_decay=hparams["weight-decay"]
+    )
 
     def prepare_batch(batch, device, non_blocking):
         inp_out = _prepare_batch(batch, device, non_blocking)
         indices = torch.arange(len(inp_out[0])).to(config.device)
         return inp_out, indices
-
-    mi = partial(get_mutual_information, batch_size=hparams["batch-size"])
 
     trainer = create_supervised_trainer(
         model,
@@ -647,6 +690,8 @@ def train(hparams):
 
     loss = Loss(cross_entropy_symmetric)
     accuracy = Accuracy()
+    mi = partial(get_mutual_information, batch_size=hparams["batch-size"])
+
     validation_metrics: Dict[str, Metric] = {
         "loss": loss,
         "accuracy": MetricsLambda(lambda x: 100 * x, accuracy),
@@ -763,8 +808,149 @@ def train(hparams):
     max_epochs = int(hparams["num-gradient-updates"] / num_batches)
     trainer.run(train_loader, max_epochs=max_epochs)
 
-    wandb_logger.close()
+    if hparams["log-wandb"]:
+        wandb_logger.close()
+
     return evaluator.state.metrics["mutual-information"]
+
+
+def train_labels(hparams):
+    set_random_seed(hparams["seed"])
+
+    train_loader, valid_loader = get_data_loaders(hparams)
+
+    num_classes = 67  # vocabulary size
+    model = AUDIO_MODELS[hparams["audio-model-name"]](
+        hparams["audio-features-size"], num_classes
+    )
+    model.to(config.device)
+
+    if hparams.get("checkpoint-path"):
+        checkpoint = torch.load(hparams["checkpoint-path"])
+        model.load_state_dict(checkpoint["model"])
+
+    optimizer = get_optimizer(
+        model, lr=hparams["lr"], weight_decay=hparams["weight-decay"]
+    )
+
+    bce = torch.nn.BCEWithLogitsLoss()
+
+    trainer = create_supervised_trainer(
+        model,
+        optimizer,
+        bce,
+        device=config.device,
+    )
+
+    validation_metrics: Dict[str, Metric] = {
+        "loss": Loss(bce),
+    }
+
+    evaluator = create_supervised_evaluator(
+        model,
+        metrics=validation_metrics,
+        device=config.device,
+    )
+
+    @trainer.on(Events.ITERATION_COMPLETED(every=hparams["log-train-freq"]))
+    def log_training_loss(trainer):
+        print(
+            "train · step: {:5d} ◇ loss: {:7.4f}".format(
+                trainer.state.iteration,
+                trainer.state.output,
+            )
+        )
+
+    @trainer.on(Events.ITERATION_COMPLETED(every=hparams["log-valid-freq"]))
+    def log_validation_results(trainer):
+        evaluator.run(valid_loader)
+        metrics = evaluator.state.metrics
+        print(
+            "valid · step: {:5d} ◇ loss: {:7.4f}".format(
+                trainer.state.iteration,
+                metrics["loss"],
+            ),
+        )
+
+    # Chekpoint
+    output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
+    prefix = "model"
+
+    checkpoint_handler = ModelCheckpoint(
+        output_dir,
+        prefix,
+        n_saved=5,
+        require_empty=False,
+        score_function=lambda engine: -engine.state.metrics["loss"],
+    )
+    evaluator.add_event_handler(
+        event_name=Events.EPOCH_COMPLETED,
+        handler=checkpoint_handler,
+        to_save={
+            "model": model,
+            "optimizer": optimizer,
+        },
+    )
+
+    cycle_size = hparams["num-gradient-updates"] - hparams["num-warmup-steps"] + 1
+    scheduler_cosine = CosineAnnealingScheduler(
+        optimizer,
+        "lr",
+        start_value=HPARAMS["lr"],
+        end_value=0,
+        cycle_size=cycle_size,
+    )
+    lr_values = [None] * hparams["num-gradient-updates"]
+    scheduler_cosine_warmup = create_lr_scheduler_with_warmup(
+        scheduler_cosine,
+        warmup_start_value=0.0,
+        warmup_end_value=hparams["lr"],
+        warmup_duration=hparams["num-warmup-steps"],
+        output_simulated_values=lr_values,
+    )
+
+    trainer.add_event_handler(Events.ITERATION_STARTED, scheduler_cosine_warmup)
+
+    if hparams["log-wandb"]:
+        wandb_logger = WandBLogger(
+            project="kayode-train-audio-embedding",
+            name=hparams["name"],
+            config=hparams,
+            tags=[
+                "flickr8k",
+                hparams["teacher-model-name"],
+                "embdding",
+                "machine:" + gethostname(),
+            ],
+        )
+
+        wandb_logger.attach_output_handler(
+            trainer,
+            event_name=Events.ITERATION_COMPLETED(every=hparams["log-train-freq"]),
+            tag="training",
+            output_transform=lambda loss: {
+                "loss": loss,
+            },
+        )
+
+        wandb_logger.attach_output_handler(
+            evaluator,
+            event_name=Events.EPOCH_COMPLETED,
+            tag="validation",
+            metric_names=["loss"],
+            global_step_transform=lambda *_: trainer.state.iteration,
+        )
+
+        wandb_logger.attach_opt_params_handler(
+            trainer, event_name=Events.ITERATION_STARTED, optimizer=optimizer
+        )
+
+    num_batches = len(train_loader)  # number of gradient updates per epoch
+    max_epochs = int(hparams["num-gradient-updates"] / num_batches)
+    trainer.run(train_loader, max_epochs=max_epochs)
+
+    if hparams["log-wandb"]:
+        wandb_logger.close()
 
 
 @click.command()
@@ -772,7 +958,13 @@ def train(hparams):
 def main(config_name=None):
     hparams = load_hparams(config_name)
     print(json.dumps(hparams, indent=4))
-    train(hparams)
+
+    if hparams["teacher-model-name"] == "features-image-clip":
+        train_clip(hparams)
+    elif hparams["teacher-model-name"] in {"labels-image-vgg", "labels-text"}:
+        train_labels(hparams)
+    else:
+        assert False
 
 
 if __name__ == "__main__":

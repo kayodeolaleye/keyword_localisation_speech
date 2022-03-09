@@ -1,0 +1,6 @@
+{
+    "audio-model-name": "cnn-transformer-clf",
+    "batch-size": 256,
+    "teacher-model-name": "labels-image-vgg",
+    "log-wandb": false
+}
