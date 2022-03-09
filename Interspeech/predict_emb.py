@@ -365,7 +365,7 @@ def main(config_name, to_eval_retrieval, to_eval_keyword_spotting):
 
     if to_eval_retrieval and to_eval_keyword_spotting:
         print(
-            "sheets →", config_name, ap, " ".join([str(v) for v in df.unstack().values])
+            "sheets →", config_name, mean_ap, " ".join([str(v) for v in df.unstack().values])
         )
         print()
 
