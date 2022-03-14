@@ -4,7 +4,7 @@ import glob
 import os
 from tqdm import tqdm
 import argparse
-from utils import ensure_folder, eval_detection_prf, extract_feature, get_gt_token_duration, get_logger, get_detection_metric_count, eval_localisation_accuracy, get_localisation_metric_count, eval_localisation_prf
+from utils import ensure_folder, eval_detection_prf, extract_feature_test, get_gt_token_duration, get_logger, get_detection_metric_count, eval_localisation_accuracy, get_localisation_metric_count, eval_localisation_prf
 from os import path
 from config import pickle_file, device, trained_model_dir, TextGrid_folder, eng_yor_word_file
 import pickle
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         print("Invalid target type")
 
     
-    samples = data["dev"] # change to "test" later on
+    samples = data["test"] # change to "test" later on
     # print(VOCAB)
     checkpoint =path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")
     checkpoint = torch.load(checkpoint, map_location="cpu")
@@ -83,11 +83,12 @@ if __name__ == "__main__":
         # print(key)
         gt_trn = [i for i in sample["trn"] if i in VOCAB]
         target_dur = [(start_end, dur, tok) for (start_end, dur, tok) in sample["dur"] if  tok.casefold() in VOCAB]
-        feature = extract_feature(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
+        feature = extract_feature_test(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
         # feature = (feature - feature.mean()) / feature.std()
         padded_input, input_length = pad(feature)
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
         input_length = torch.tensor([input_length]).to(device)
+        # print(input_length)
 
         with torch.no_grad():
             out, attention_weights = model(padded_input)
@@ -107,12 +108,16 @@ if __name__ == "__main__":
         # Evaluating model's performance on localisation of keywords in one utterance
         
         attention_weights = attention_weights.squeeze(0)[:, :input_length]
+        # print(attention_weights.shape)
         # print("Attention weights score shape: ", attention_weights.shape)
         tokens = list(VOCAB.keys())
         valid_hyp_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in tokens if tok.casefold() in hyp_trn] # List of words detected by model with a prob > a threshold
         valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn] # if tok.casefold() in tokens] # remove tokens that are not in the speech vocabulary
         # print("valid gt_trn: ", valid_gt_trn)
+
         hyp_duration = []
+        if key not in textgrid_base_lst:
+            continue
         for tok in valid_hyp_trn:
             token_attn_weight = attention_weights.cpu().numpy()[tok[1], :]
 
@@ -121,9 +126,12 @@ if __name__ == "__main__":
             token_max_frame = np.argmax(token_attn_weight)
             hyp_duration.append((token_max_frame, tok[0]))
 
+
         # ground truth start and end time for each word in utterance
         token_gt_duration = get_gt_token_duration(key, textgrid_base_lst, yor_to_eng_word_dict, valid_gt_trn, root_path=TextGrid_folder) 
-        # print("gt_duration: ", token_gt_duration)
+        print(key)
+        print("hyp_duration: ", hyp_duration)
+        print("gt_duration: ", token_gt_duration)
 
         l_analysis = get_localisation_metric_count(hyp_duration, token_gt_duration)
         l_n_tp += l_analysis[0]
@@ -139,9 +147,9 @@ if __name__ == "__main__":
 
     # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
-    out_dir = "outputs"
+    out_dir = "outputs/" + args.model_path
     ensure_folder(out_dir)
-    np.savez_compressed("outputs/all_full_sigmoid_out.npz", **all_full_sigmoid_out)
+    np.savez_compressed(out_dir, **all_full_sigmoid_out)
     # Print status
     print
     print("-"*79)

@@ -11,18 +11,33 @@ class CNNAttend(nn.Module):
         # self.vocab_size = vocab_size
 
         # Convolutional module
+        # self.conv_module = nn.Sequential(
+        #         nn.Conv1d(39, 96, 9, 1, 4),
+        #         nn.ReLU(),
+        #         nn.Conv1d(96, 96, 11, 1, 5),
+        #         nn.ReLU(),
+        #         nn.Conv1d(96, 96, 11, 1, 5),
+        #         nn.ReLU(),
+        #         nn.Conv1d(96, 96, 11, 1, 5),
+        #         nn.ReLU(),
+        #         nn.Conv1d(96, 96, 11, 1, 5),
+        #         nn.ReLU(),
+        #         nn.Conv1d(96, embed_size, 11, 1, 5)
+        #         # nn.ReLU()
+        #     )
+
         self.conv_module = nn.Sequential(
-                nn.Conv1d(39, 96, 9, 1, 4),
+                nn.Conv1d(39, 256, 9, 1, 4),
                 nn.ReLU(),
-                nn.Conv1d(96, 96, 11, 1, 5),
+                nn.Conv1d(256, 256, 11, 1, 5),
                 nn.ReLU(),
-                nn.Conv1d(96, 96, 11, 1, 5),
+                nn.Conv1d(256, 256, 11, 1, 5),
                 nn.ReLU(),
-                nn.Conv1d(96, 96, 11, 1, 5),
+                nn.Conv1d(256, 256, 11, 1, 5),
                 nn.ReLU(),
-                nn.Conv1d(96, 96, 11, 1, 5),
+                nn.Conv1d(256, 256, 11, 1, 5),
                 nn.ReLU(),
-                nn.Conv1d(96, embed_size, 11, 1, 5)
+                nn.Conv1d(256, embed_size, 11, 1, 5)
                 # nn.ReLU()
             )
         # Embedding module

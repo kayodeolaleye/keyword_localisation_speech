@@ -13,7 +13,7 @@ import random
 from config import flickr8k_folder
 import librosa
 import textgrid
-from config import TextGrid_folder
+# from config import TextGrid_folder
 
 
 def parse_args():
@@ -169,7 +169,7 @@ def spec_augment(spec: np.ndarray,
         spec[:, t0:t0 + num_frames_to_mask] = value
     return spec
 
-def extract_feature(
+def extract_feature_train(
     input_file, 
     feature="mfcc", 
     sr=16000, 
@@ -215,6 +215,51 @@ def extract_feature(
     else:
         return np.swapaxes(feat, 1, 0).astype("float32")
 
+def extract_feature_test(
+    input_file, 
+    feature="mfcc", 
+    sr=16000, 
+    preemph_coef=0.97,
+    dim=13, 
+    cmvn=True, 
+    delta=False, 
+    delta_delta=False, 
+    window_size=25, 
+    stride=10, 
+    save_feature=None):
+
+    y, sr = librosa.load(input_file, sr=sr)
+    # yt, _ = librosa.effects.trim(y, top_db=20) # remove sound trimming during testing
+    # yt = normalize(yt)
+    yt = normalize(y)
+    yt = preemphasis(yt, preemph_coef)
+    ws = int(sr * 0.001 * window_size)
+    st = int(sr * 0.001 * stride)
+    if feature == "fbank": # log-scaled
+        feat = librosa.feature.melspectrogram(y=yt, sr=sr, n_mels=dim, n_fft=ws, hop_length=st)
+
+        feat = np.log(feat + 1e-6)
+    elif feature == "mfcc":
+        feat = librosa.feature.mfcc(y=yt, sr=sr, n_mfcc=dim, n_mels=80, n_fft=ws, hop_length=st)
+        feat[0] = librosa.feature.rms(yt, hop_length=st, frame_length=ws)
+
+    else:
+        raise ValueError("Unsupported Acoustic Feature: " + feature)
+
+    feat = [feat]
+    if delta:
+        feat.append(librosa.feature.delta(feat[0]))
+    if delta_delta:
+        feat.append(librosa.feature.delta(feat[0], order=2))
+    feat = np.concatenate(feat, axis=0)
+    if cmvn:
+        feat = (feat - feat.mean(axis=1)[:, np.newaxis]) / (feat.std(axis=1) + 1e-16)[:, np.newaxis]
+    if save_feature is not None:
+        tmp = np.swapaxes(feat, 0, 1).astype("float32")
+        np.save(save_feature, tmp)
+        return len(tmp)
+    else:
+        return np.swapaxes(feat, 1, 0).astype("float32")
 # Tensorboard functions
 def write_scalar_to_tb(
             writer,
@@ -292,14 +337,14 @@ class AverageMeter(object):
 #         token_dur.append((start_end, tok.casefold()))
 #     return token_dur
 
-def get_gt_token_duration(key, textgrids_list, yor_to_eng_word_dict, valid_gt_trn, root_path=TextGrid_folder):
+def get_gt_token_duration(key, textgrids_list, yor_to_eng_word_dict, valid_gt_trn, root_path=None):
     target_dur = []
     token_dur = []
     valid_token = [valid_tok for valid_tok, _ in valid_gt_trn]
     if key in textgrids_list:
         tg = textgrid.TextGrid.fromFile(path.join(root_path, key + ".TextGrid"))
         for i in tg[0]:
-            target_dur.append(((i.minTime * 100, i.maxTime * 100), i.mark.casefold()))
+            target_dur.append(((int(i.minTime * 100), int(i.maxTime * 100)), i.mark.casefold()))
     for start_end, tok in target_dur:
         if tok == "" or tok not in yor_to_eng_word_dict.keys():
             continue
@@ -309,8 +354,8 @@ def get_gt_token_duration(key, textgrids_list, yor_to_eng_word_dict, valid_gt_tr
                 token_dur.append((start_end, token_eng_lst[0].casefold()))
             if token_eng_lst[1] in valid_token:
                 token_dur.append((start_end, token_eng_lst[1].casefold()))
-
-        token_dur.append((start_end, token_eng_lst[0].casefold()))
+        else:
+            token_dur.append((start_end, token_eng_lst[0].casefold()))
     return token_dur
 
 def get_detection_metric_count(hyp_trn, gt_trn):
