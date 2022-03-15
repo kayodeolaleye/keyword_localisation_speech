@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('--vocab_size', default=67, type=int, help='Size of speech corpus vocabulary')
     parser.add_argument("--seed", default=42, type=int, help='initialize the random number generator')
 
+
     args = parser.parse_args()
     return args
 
@@ -113,6 +114,14 @@ def get_yor_eng_word_dict(filename):
                 yor_eng_word_dict[line[1]] = []
             yor_eng_word_dict[line[1]].append(line[0])
     return yor_eng_word_dict
+
+def get_eng_yor_word_dict(filename):
+    eng_yor_word_dict = {}
+    with open(filename) as f:
+        for line in f:
+            line = line.strip().split(", ")
+            eng_yor_word_dict[line[0]] = line[1]
+    return eng_yor_word_dict
 
 def get_soft_tags(viz_tag_fn, output_dir=None):
 
@@ -337,14 +346,18 @@ class AverageMeter(object):
 #         token_dur.append((start_end, tok.casefold()))
 #     return token_dur
 
-def get_gt_token_duration(key, textgrids_list, yor_to_eng_word_dict, valid_gt_trn, root_path=None):
+def get_target_duration(key, textgrids_lst, root_path):
     target_dur = []
-    token_dur = []
-    valid_token = [valid_tok for valid_tok, _ in valid_gt_trn]
-    if key in textgrids_list:
+    if key in textgrids_lst:
         tg = textgrid.TextGrid.fromFile(path.join(root_path, key + ".TextGrid"))
         for i in tg[0]:
             target_dur.append(((int(i.minTime * 100), int(i.maxTime * 100)), i.mark.casefold()))
+    return target_dur
+
+def get_gt_token_duration(key, textgrids_list, yor_to_eng_word_dict, valid_gt_trn, root_path=None):
+    target_dur = get_target_duration(key, textgrids_list, root_path)
+    token_dur = []
+    valid_token = [valid_tok for valid_tok, _ in valid_gt_trn]
     for start_end, tok in target_dur:
         if tok == "" or tok not in yor_to_eng_word_dict.keys():
             continue
@@ -454,35 +467,75 @@ def split_frame_length(frame_length, min_frame, max_frame, step):
             start += step
         return segments_duration
 
-def plot_stuff(valid_proposed_max_durations, all_utt_segment_dur, all_utt_seg_score, target_dur, wave_path, ivocab):
-    utt_key = path.splitext(path.basename(wave_path))[0]
-    plt.figure(figsize=(20,10), dpi=80)
-    
-    for word_id, segment_ind in valid_proposed_max_durations:
-        dur = all_utt_segment_dur[segment_ind]
-        mid_dur = np.sum(dur)/2
-        text = str(dur[0]) + " - " + str(dur[1]) + "(" + ivocab[word_id] + ")"
-        plt.annotate(text, (mid_dur, all_utt_seg_score[segment_ind, word_id]), fontsize=16)
-        plt.plot(mid_dur, all_utt_seg_score[segment_ind, word_id], "r+", markersize=19)
+def plot_audio(ax, wave_path):
+    audio, _ = librosa.load(wave_path, sr=16_000)
+    ax.plot(audio)
+    ax.set_xlim([0, len(audio)])
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+def plot_location(ax, token_attn_weight, token, target_dur, key):
+    # fig = plt.figure(figsize=(55,10))
+    # ax = plt.gca()
+    # ax.gca()
+
+    ax.spines['right'].set_linewidth(9)
+    ax.spines['top'].set_linewidth(9)
+    ax.spines['left'].set_linewidth(9)
+    ax.spines['bottom'].set_linewidth(9)
+    ax.plot(token_attn_weight, label=token[0], lw=9)
 
     def timelines(y, xstart, xstop, color='b', label=None):
-        """Plot timelines at y from xstart to xstop with given color."""   
-        plt.hlines(y, xstart, xstop, color, lw=2)
-        plt.vlines(xstart, y+0.03, y-0.03, color, lw=1)
-        plt.vlines(xstop, y+0.03, y-0.03, color, lw=1)
-        if label is not None:
-            plt.text(xstart + (xstop-xstart)/2.0, y+0.03, label, horizontalalignment='center')
 
-    for start_end, dur, tok in target_dur:
-        timelines(0.25, start_end[0], start_end[1], "k", tok)
+        """Plot timelines at y from xstart to xstop with given color."""   
+        # plt.hlines(y, xstart, xstop, color, lw=1)
+        ax.vlines(xstart, y+0.03, y-0.03, color, lw=5)
+        if label is not None:
+            ax.text(xstart + (xstop-xstart)/2.0, y+0.004, label, horizontalalignment='center', fontsize=45)
+
+    for start_end, label in target_dur:
+        # if label == token[0]:
+        timelines(0.09, start_end[0], start_end[1], "k", label)
+    ax.set_ylim(0.0)
+    ax.set_xlim(0)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel("Time", fontsize=80)
+    ax.set_ylabel(r"Score $(\alpha_t)$", fontsize=80)
+    ax.legend(fontsize=60)
+    
+    # ax.clf()
+
+
+# def plot_stuff(valid_proposed_max_durations, all_utt_segment_dur, all_utt_seg_score, target_dur, wave_path, ivocab):
+#     utt_key = path.splitext(path.basename(wave_path))[0]
+#     plt.figure(figsize=(20,10), dpi=80)
+    
+#     for word_id, segment_ind in valid_proposed_max_durations:
+#         dur = all_utt_segment_dur[segment_ind]
+#         mid_dur = np.sum(dur)/2
+#         text = str(dur[0]) + " - " + str(dur[1]) + "(" + ivocab[word_id] + ")"
+#         plt.annotate(text, (mid_dur, all_utt_seg_score[segment_ind, word_id]), fontsize=16)
+#         plt.plot(mid_dur, all_utt_seg_score[segment_ind, word_id], "r+", markersize=19)
+
+#     def timelines(y, xstart, xstop, color='b', label=None):
+#         """Plot timelines at y from xstart to xstop with given color."""   
+#         plt.hlines(y, xstart, xstop, color, lw=2)
+#         plt.vlines(xstart, y+0.03, y-0.03, color, lw=1)
+#         plt.vlines(xstop, y+0.03, y-0.03, color, lw=1)
+#         if label is not None:
+#             plt.text(xstart + (xstop-xstart)/2.0, y+0.03, label, horizontalalignment='center')
+
+#     for start_end, dur, tok in target_dur:
+#         timelines(0.25, start_end[0], start_end[1], "k", tok)
         
-    plt.title("Dense", fontsize=26)
-    plt.xlabel("Time (frames)")
-    plt.xlim(0.0)
-    plt.ylim(0.0)
-    ensure_folder("plots")
-    file_path = path.join("plots", utt_key + ".pdf")
-    plt.savefig(file_path, dpi=150)
+#     plt.title("Dense", fontsize=26)
+#     plt.xlabel("Time (frames)")
+#     plt.xlim(0.0)
+#     plt.ylim(0.0)
+#     ensure_folder("plots")
+#     file_path = path.join("plots", utt_key + ".pdf")
+#     plt.savefig(file_path, dpi=150)
 
 
 def get_token_dur_dict(target_dur):
