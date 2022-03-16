@@ -48,6 +48,7 @@ from train_emb import (
     LabelsTextLoader,
     cross_entropy_symmetric,
     get_key_img,
+    get_out_dim,
     get_mutual_information,
     load_hparams,
     pad_collate,
@@ -59,10 +60,17 @@ AUDIO_MODEL_NAME = "cnn-transformer"
 BATCH_SIZE = 512
 
 
+def get_score(path):
+    _, filename = os.path.split(path)
+    filename, _ = os.path.splitext(filename)
+    return float(filename.split("_")[-1])
+
+
 def get_model_path(audio_model_name, teacher_model_name):
     output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
     prefix = "model"
     files = [f for f in os.listdir(output_dir) if f.startswith(prefix)]
+    files = sorted(files, key=get_score, reverse=True)
     # assert len(files) == 1
 
     selected_file = first(files)
@@ -81,10 +89,11 @@ def load_model_hparams(hparams):
     output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
     prefix = "model"
 
-    model = AUDIO_MODELS[hparams["audio-model-name"]](hparams["audio-features-size"], OUT_DIM)
+    model = AUDIO_MODELS[hparams["audio-model-name"]](hparams["audio-features-size"], get_out_dim(hparams))
     files = [f for f in os.listdir(output_dir) if f.startswith(prefix)]
+    files = sorted(files, key=get_score, reverse=True)
 
-    model_path = os.path.join(output_dir, sorted(files)[-1])
+    model_path = os.path.join(output_dir, files[0])
     model.load_state_dict(torch.load(model_path)["model"])
     model.to(device)
     print("Loaded model from", model_path)
@@ -97,6 +106,15 @@ def predict(hparams: Dict[str, Any]):
 
     if os.path.exists(output_path):
         return
+
+    if hparams["teacher-model-name"] == "features-image-clip":
+        def predict1(model, x):
+            return model.embed_audio(x)
+    elif hparams["teacher-model-name"] in {"labels-image-vgg", "labels-text"}:
+        def predict1(model, x):
+            return model.forward(x)
+    else:
+        assert False
 
     dataset_name = hparams["dataset-name"]
     dataset = DATASETS[dataset_name](
@@ -121,7 +139,8 @@ def predict(hparams: Dict[str, Any]):
         model.eval()
         with torch.no_grad():
             x, _ = _prepare_batch(batch, device=device)
-            y_pred = model.embed_audio(x)
+            y_pred = predict1(model, x)
+            pdb.set_trace()
             return y_pred.cpu().numpy()
 
     evaluator = Engine(evaluate_step)
@@ -198,7 +217,7 @@ def eval_batch(model):
     # fmt: on
 
 
-def compute_keyword_spotting_scores(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
+def compute_keyword_spotting_scores_clip(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
     id_to_word = {i: w for w, i in vocab.items()}
     words = [id_to_word[i] for i in range(len(vocab))]
 
@@ -221,6 +240,23 @@ def compute_keyword_spotting_scores(config_name: str, vocab, samples: List[Any])
     audio_features = audio_features / audio_features.norm(dim=-1, keepdim=True)
 
     return audio_features @ text_features.T
+
+
+def compute_keyword_spotting_scores_labels(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
+    loader = LOADERS["audio-" + config_name]()
+    predictions = torch.vstack([torch.tensor(loader(s)) for s in samples])
+    return predictions
+
+
+def compute_keyword_spotting_scores(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
+    hparams = load_hparams(config_name)
+    if hparams["teacher-model-name"] == "features-image-clip":
+        f = compute_keyword_spotting_scores_clip
+    elif hparams["teacher-model-name"] in {"labels-image-vgg", "labels-text"}:
+        f = compute_keyword_spotting_scores_labels
+    else:
+        assert False
+    return f(config_name, vocab, samples)
 
 
 def eval_keyword_spotting(dataset, config_name):

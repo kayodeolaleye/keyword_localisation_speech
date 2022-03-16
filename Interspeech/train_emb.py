@@ -652,6 +652,15 @@ def get_optimizer(model, *, lr, weight_decay):
     return torch.optim.AdamW(group_params, lr=lr)
 
 
+def get_out_dim(hparams):
+    if hparams["teacher-model-name"] == "features-image-clip":
+        return 512
+    elif hparams["teacher-model-name"] in {"labels-image-vgg", "labels-text"}:
+        return 67
+    else:
+        assert False
+
+
 def train_clip(hparams):
     set_random_seed(hparams["seed"])
 
