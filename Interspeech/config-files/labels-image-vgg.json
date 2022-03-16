@@ -1,6 +1,9 @@
 {
     "audio-model-name": "cnn-transformer-clf",
     "batch-size": 256,
+    "lr": 4e-4,
     "teacher-model-name": "labels-image-vgg",
-    "log-wandb": false
+    "num-gradient-steps": 10000,
+    "log-valid-freq": 128,
+    "log-wandb": true
 }
