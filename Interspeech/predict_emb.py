@@ -89,7 +89,9 @@ def load_model_hparams(hparams):
     output_dir = os.path.join(OUTPUT_DIR, hparams["name"])
     prefix = "model"
 
-    model = AUDIO_MODELS[hparams["audio-model-name"]](hparams["audio-features-size"], get_out_dim(hparams))
+    model = AUDIO_MODELS[hparams["audio-model-name"]](
+        hparams["audio-features-size"], get_out_dim(hparams)
+    )
     files = [f for f in os.listdir(output_dir) if f.startswith(prefix)]
     files = sorted(files, key=get_score, reverse=True)
 
@@ -108,11 +110,15 @@ def predict(hparams: Dict[str, Any]):
         return
 
     if hparams["teacher-model-name"] == "features-image-clip":
+
         def predict1(model, x):
             return model.embed_audio(x)
+
     elif hparams["teacher-model-name"] in {"labels-image-vgg", "labels-text"}:
+
         def predict1(model, x):
             return model.forward(x)
+
     else:
         assert False
 
@@ -140,7 +146,6 @@ def predict(hparams: Dict[str, Any]):
         with torch.no_grad():
             x, _ = _prepare_batch(batch, device=device)
             y_pred = predict1(model, x)
-            pdb.set_trace()
             return y_pred.cpu().numpy()
 
     evaluator = Engine(evaluate_step)
@@ -217,7 +222,9 @@ def eval_batch(model):
     # fmt: on
 
 
-def compute_keyword_spotting_scores_clip(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
+def compute_keyword_spotting_scores_clip(
+    config_name: str, vocab, samples: List[Any]
+) -> np.ndarray:
     id_to_word = {i: w for w, i in vocab.items()}
     words = [id_to_word[i] for i in range(len(vocab))]
 
@@ -242,13 +249,17 @@ def compute_keyword_spotting_scores_clip(config_name: str, vocab, samples: List[
     return audio_features @ text_features.T
 
 
-def compute_keyword_spotting_scores_labels(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
+def compute_keyword_spotting_scores_labels(
+    config_name: str, vocab, samples: List[Any]
+) -> np.ndarray:
     loader = LOADERS["audio-" + config_name]()
     predictions = torch.vstack([torch.tensor(loader(s)) for s in samples])
     return predictions
 
 
-def compute_keyword_spotting_scores(config_name: str, vocab, samples: List[Any]) -> np.ndarray:
+def compute_keyword_spotting_scores(
+    config_name: str, vocab, samples: List[Any]
+) -> np.ndarray:
     hparams = load_hparams(config_name)
     if hparams["teacher-model-name"] == "features-image-clip":
         f = compute_keyword_spotting_scores_clip
@@ -290,7 +301,6 @@ for config in os.listdir("config-files"):
     name, ext = os.path.splitext(config)
     if ext == ".json":
         LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
-
 
 
 MODALITIES = ["audio", "image", "text"]
@@ -411,7 +421,10 @@ def main(config_name, to_eval_retrieval, to_eval_keyword_spotting, vocab_type):
 
     if to_eval_retrieval and to_eval_keyword_spotting:
         print(
-            "sheets →", config_name, mean_ap, " ".join([str(v) for v in df.unstack().values])
+            "sheets →",
+            config_name,
+            mean_ap,
+            " ".join([str(v) for v in df.unstack().values]),
         )
         print()
 

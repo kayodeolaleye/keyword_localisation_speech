@@ -41,6 +41,7 @@ import torchvision.models
 
 from torch.nn.functional import binary_cross_entropy, cross_entropy, mse_loss
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data._utils.collate import default_collate
 
 from ignite.contrib.metrics import AveragePrecision
 from ignite.contrib.handlers.wandb_logger import WandBLogger
@@ -106,6 +107,10 @@ VOCAB_SIZE = 67
 EMBED_SIZE = 1000
 OUT_DIM = 512
 OUTPUT_DIR = "trained_models"
+
+
+def mapt(f, t):
+    return tuple(f(x) for x in t)
 
 
 def load_hparams(config_name: Optional[str], base_path=".") -> Dict[str, Any]:
@@ -261,6 +266,46 @@ class CNNTransformerClf(torch.nn.Module):
         return x
 
 
+class CNNTransformerMultiTask(torch.nn.Module):
+    def __init__(self, input_dim, embed_dim, num_classes):
+        super().__init__()
+        width = 128
+        self.conv = make_cnn_encoder(input_dim, width)
+        self.transformer = Transformer(width=width, layers=8, heads=4)
+        self.embed_clip = torch.nn.Sequential(
+            torch.nn.LayerNorm(width),
+            torch.nn.Linear(width, embed_dim),
+        )
+        self.classify = torch.nn.Sequential(
+            torch.nn.LayerNorm(width),
+            torch.nn.Linear(width, num_classes),
+        )
+        # temperature
+        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+    def get_emb_shared(self, audio):
+        x = self.conv(audio)
+        x = x.permute(2, 0, 1)  # BDT → TBD
+        x = self.transformer(x)
+        x = x.permute(1, 2, 0)  # TBD → BDT
+        return x[:, :, 0]
+
+    def forward(self, audio_and_target):
+        audio, emb_target = audio_and_target
+
+        emb_shared = self.get_emb_shared(audio)
+        emb_clip = self.embed_clip(emb_shared)
+
+        inp_features = emb_clip / emb_clip.norm(dim=-1, keepdim=True)
+        out_features = emb_target / emb_target.norm(dim=-1, keepdim=True)
+
+        τ = torch.clamp(self.logit_scale.exp(), 0, 100)
+        logits_clip = τ * inp_features @ out_features.T
+        logits_clf = self.classify(emb_shared)
+
+        return logits_clip, logits_clf
+
+
 class Wav2Vec2Extractor:
     def __init__(self, name, dataset):
         # self.processor = Wav2Vec2Processor.from_pretrained(f"facebook/wav2vec2-base-960h")
@@ -305,6 +350,7 @@ AUDIO_MODELS = {
     "resnet18": partial(ResnetCLIP, num_layers=18, pretrained=False),
     "resnet18-pretrained": partial(ResnetCLIP, num_layers=18, pretrained=True),
     "cnn-transformer-clf": CNNTransformerClf,
+    "cnn-transformer-multi-task": CNNTransformerMultiTask,
 }
 
 
@@ -328,7 +374,7 @@ def pad_tensor(vec, pad, dim):
 def pad_collate(batch, dim=0):
     max_len = max(xy[0].shape[dim] for xy in batch)
     xs = torch.stack([pad_tensor(xy[0], max_len, dim) for xy in batch], dim=0)
-    ys = torch.stack([xy[1] for xy in batch])
+    ys = default_collate([xy[1] for xy in batch])
     return xs, ys
 
 
@@ -410,11 +456,23 @@ class FeaturesTextCLIPLoader:
         return self.data[index]
 
 
+class JointLoader:
+    def __init__(self, loader1, loader2, **kwargs):
+        self.loader1 = loader1(**kwargs)
+        self.loader2 = loader2(**kwargs)
+
+    def __call__(self, sample_name: KeyAudio):
+        return self.loader1(sample_name), self.loader2(sample_name)
+
+
 TARGET_LOADERS = {
     "dummy": DummyLoader,
     "labels-image-vgg": LabelsImageVGGLoader,
     "labels-text": LabelsTextLoader,
     "features-image-clip": FeaturesImageCLIPLoader,
+    "features-image-clip+labels-image-vgg": partial(
+        JointLoader, loader1=FeaturesImageCLIPLoader, loader2=LabelsImageVGGLoader
+    ),
 }
 
 
@@ -461,7 +519,7 @@ class AudioDataset(ABC, Dataset):
         audio = torch.tensor(self.load_audio_features(sample_name))
         audio = audio[: HPARAMS["max-len-audio"]]
         audio = audio.t()  # Matches Kayode's model assumption: temporal axis is last
-        target = torch.tensor(self.load_target(sample_name))
+        target = self.load_target(sample_name)
         return audio, target
 
     def __len__(self):
