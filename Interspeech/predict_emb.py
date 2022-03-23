@@ -259,9 +259,9 @@ def compute_keyword_spotting_scores(config_name: str, vocab, samples: List[Any])
     return f(config_name, vocab, samples)
 
 
-def eval_keyword_spotting(dataset, config_name):
+def eval_keyword_spotting(dataset, config_name, vocab_type):
     samples = dataset.samples
-    labels_loader = LabelsTextLoader()
+    labels_loader = LabelsTextLoader(vocab_type)
     vocab = labels_loader.vocab
 
     scores = compute_keyword_spotting_scores(config_name, vocab, samples)
@@ -349,11 +349,21 @@ def evaluate_retrieval(src_samples, tgt_samples, sim, are_same):
     }
 
 
+VOCAB_CHOICES = "vocab-67-seen vocab-67-unseen vocab-67-unseen-2 vocab-67-unseen-3".split()
+
+
 @click.command()
 @click.option("--config", "config_name")
 @click.option("--to-eval-retrieval", "to_eval_retrieval", is_flag=True)
 @click.option("--to-eval-keyword-spotting", "to_eval_keyword_spotting", is_flag=True)
-def main(config_name, to_eval_retrieval, to_eval_keyword_spotting):
+@click.option(
+    "--vocab",
+    "vocab_type",
+    type=click.Choice(VOCAB_CHOICES),
+    default="vocab-67-seen",
+    help="keywords to compute the metrics on",
+)
+def main(config_name, to_eval_retrieval, to_eval_keyword_spotting, vocab_type):
     # predict and store predictions
     hparams = load_hparams(config_name)
     print(json.dumps(hparams, indent=4))
@@ -388,7 +398,7 @@ def main(config_name, to_eval_retrieval, to_eval_keyword_spotting):
 
     if to_eval_keyword_spotting:
         # is there a particular keyword in the audio?
-        mean_ap, word_ap = eval_keyword_spotting(dataset, config_name)
+        mean_ap, word_ap = eval_keyword_spotting(dataset, config_name, vocab_type)
         for word, ap in word_ap:
             print("{:10s} {:5.2f}%".format(word, ap))
         print("{:10s} {:5.2f}%".format("mean", mean_ap))

@@ -345,12 +345,13 @@ class LabelsImageVGGLoader:
 
 
 class LabelsTextLoader:
-    def __init__(self):
+    def __init__(self, vocab_type="vocab-67-seen"):
         # path_tran_dict = os.path.join(config.flickr8k_folder, "tran_dict.pkl")
         # with open(path_tran_dict, "rb") as f:
         #     self.tran_dict = pickle.load(f)
+        path_keywords = os.path.join("data/flickr8k", vocab_type + ".txt")
         self.tran_dict = Flickr8kDataset.load_transcripts()
-        self.vocab = get_keywords(config.keywords_fn)
+        self.vocab = get_keywords(path_keywords)
 
     def __call__(self, sample_name: KeyAudio):
         words = self.tran_dict[sample_name.value].lower().split()
