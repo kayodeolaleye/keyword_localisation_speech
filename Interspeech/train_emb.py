@@ -291,7 +291,8 @@ class CNNTransformerMultiTask(torch.nn.Module):
         return x[:, :, 0]
 
     def forward(self, audio_and_target):
-        audio, emb_target = audio_and_target
+        audio = audio_and_target["audio"]
+        emb_target = audio_and_target["target-emb"]
 
         emb_shared = self.get_emb_shared(audio)
         emb_clip = self.embed_clip(emb_shared)
@@ -303,7 +304,10 @@ class CNNTransformerMultiTask(torch.nn.Module):
         logits_clip = τ * inp_features @ out_features.T
         logits_clf = self.classify(emb_shared)
 
-        return logits_clip, logits_clf
+        return {
+            "logits-emb": logits_clip,
+            "logits-clf": logits_clf,
+        }
 
 
 class Wav2Vec2Extractor:
