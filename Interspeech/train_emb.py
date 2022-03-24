@@ -92,7 +92,7 @@ HPARAMS: Dict[str, Any] = {
     "teacher-model-name": "features-image-clip",
     "batch-size": 64,
     "lr": 4 * 1e-4,
-    "num-gradient-updates": 25_000,
+    "num-gradient-steps": 25_000,
     "num-warmup-steps": 1_000,
     "max-len-audio": 2048,
     "seed": 42,
@@ -816,7 +816,7 @@ def train_clip(hparams):
         },
     )
 
-    cycle_size = hparams["num-gradient-updates"] - hparams["num-warmup-steps"] + 1
+    cycle_size = hparams["num-gradient-steps"] - hparams["num-warmup-steps"] + 1
     scheduler_cosine = CosineAnnealingScheduler(
         optimizer,
         "lr",
@@ -824,7 +824,7 @@ def train_clip(hparams):
         end_value=0,
         cycle_size=cycle_size,
     )
-    lr_values = [None] * hparams["num-gradient-updates"]
+    lr_values = [None] * hparams["num-gradient-steps"]
     scheduler_cosine_warmup = create_lr_scheduler_with_warmup(
         scheduler_cosine,
         warmup_start_value=0.0,
@@ -960,7 +960,7 @@ def train_labels(hparams):
         },
     )
 
-    cycle_size = hparams["num-gradient-updates"] - hparams["num-warmup-steps"] + 1
+    cycle_size = hparams["num-gradient-steps"] - hparams["num-warmup-steps"] + 1
     scheduler_cosine = CosineAnnealingScheduler(
         optimizer,
         "lr",
@@ -968,7 +968,7 @@ def train_labels(hparams):
         end_value=0,
         cycle_size=cycle_size,
     )
-    lr_values = [None] * hparams["num-gradient-updates"]
+    lr_values = [None] * hparams["num-gradient-steps"]
     scheduler_cosine_warmup = create_lr_scheduler_with_warmup(
         scheduler_cosine,
         warmup_start_value=0.0,
@@ -1014,7 +1014,7 @@ def train_labels(hparams):
         )
 
     num_batches = len(train_loader)  # number of gradient updates per epoch
-    max_epochs = int(hparams["num-gradient-updates"] / num_batches)
+    max_epochs = int(hparams["num-gradient-steps"] / num_batches)
     trainer.run(train_loader, max_epochs=max_epochs)
 
     if hparams["log-wandb"]:
