@@ -27,9 +27,9 @@ wav_to_spk_fn = path.join(flickr8k_audio_dir, "wav2spk.txt")
 flickr8k_ctm_fn = path.join(flickr8k_audio_dir, "flickr_8k.ctm")
 soft_tags_fn = path.join(flickr8k_folder, "flickr8k.tags.all.txt") # path to Herman's soft tags
 keywords_fn = path.join(flickr8k_folder, "keywords.8.txt")
-flickr8k_audio_yor_dir = path.join(BASE_DIR, "Flickr8k_Yoruba_v2")
-TextGrid_folder = path.join(BASE_DIR, "Flickr8k_Yoruba_v2", "Flickr8k_alignment")
-eng_yor_word_file = path.join(BASE_DIR, "Flickr8k_Yoruba_v2", "Flickr8k_text", "eng_yoruba_keywords.txt")
+flickr8k_audio_yor_dir = path.join(BASE_DIR, "Flickr8k_Yoruba_v6")
+TextGrid_folder = path.join(BASE_DIR, "Flickr8k_Yoruba_v6", "Flickr8k_alignment")
+eng_yor_word_file = path.join(BASE_DIR, "Flickr8k_Yoruba_v6", "Flickr8k_text", "eng_yoruba_keywords.txt")
 
 # Model path
 trained_model_dir = "trained_models"

@@ -30,7 +30,7 @@ def parse_args():
                         help='Batch size')
     parser.add_argument('--num_workers', default=4, type=int,
                         help='Number of workers to generate minibatch')
-    parser.add_argument('--lr', default=1e-3, type=float,
+    parser.add_argument('--lr', default=0.0001, type=float,
                         help='Init learning rate')
     parser.add_argument('--checkpoint', type=str, default=None, help='checkpoint')
     parser.add_argument('--target_type', type=str, help='provide the type of target to use for supervision')
@@ -38,6 +38,10 @@ def parse_args():
     parser.add_argument('--embed_size', default=1024, type=int, help='embedding dimension / dimension of the convolutional feature')
     parser.add_argument('--vocab_size', default=67, type=int, help='Size of speech corpus vocabulary')
     parser.add_argument("--seed", default=42, type=int, help='initialize the random number generator')
+    parser.add_argument("--lr_schedule", action='store_true', help='Learning rate scheduler')
+    parser.add_argument('--scheduler_type', type=str, default=None, help='Choose a learning rate scheduler to use')
+
+    
 
 
     args = parser.parse_args()
@@ -300,7 +304,7 @@ def get_logger():
     logger.setLevel(logging.INFO)
     return logger
 
-def save_checkpoint(epoch, epochs_since_improvement, model, optimizer, loss, is_best_loss, precision, is_best_precision, recall, is_best_recall, fscore, is_best_fscore, model_path):
+def save_checkpoint(epoch, epochs_since_improvement, model, optimizer,loss, is_best_loss, precision, is_best_precision, recall, is_best_recall, fscore, is_best_fscore, model_path, scheduler=None):
     state = {'epoch': epoch,
     'epochs_since_improvement':epochs_since_improvement,
     'loss': loss,
@@ -308,7 +312,8 @@ def save_checkpoint(epoch, epochs_since_improvement, model, optimizer, loss, is_
     'recall': recall,
     'fscore': fscore,
     'model': model,
-    'optimizer': optimizer
+    'optimizer': optimizer,
+    'scheduler': scheduler
     }
 
     filename = path.join(model_path, 'checkpoint.tar')
@@ -500,11 +505,11 @@ def plot_location(ax, token_attn_weight, token, target_dur, key):
     ax.set_xlim(0)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_xlabel("Time", fontsize=80)
-    ax.set_ylabel(r"Score $(\alpha_t)$", fontsize=80)
+    ax.set_xlabel("Time", fontsize=50)
+    ax.set_ylabel(r"Score $(\alpha_t)$", fontsize=50)
     ax.legend(fontsize=60)
     
-    # ax.clf()
+    
 
 
 # def plot_stuff(valid_proposed_max_durations, all_utt_segment_dur, all_utt_seg_score, target_dur, wave_path, ivocab):

@@ -23,6 +23,14 @@ Note: download Flicker8k Yoruba audio and Flicker8k images to a directory outsid
 
 ### Usage
 #### Data wrangling
+
+Downsample audio from 48kHz to 16kHz
+
+    $ for i in *wav; do sox -G $i -r 16k -c 1 16k/${i}; done
+
+Rename utterances to include _0 [Using this Jupyter notebook]
+    /home/kayode/PhD/Journal stuff/Clean_recipes_localisation/Cross_lingual_localisation/Renaming_wav_files_to_include_speaker_ID.ipynb
+
 Prepare data split and transcription for pre-processing
 
     $ python structure_data.py
@@ -46,26 +54,14 @@ Pre-process data
     runs/
     trained_models/
 
-### Train CNNAttend model using Bag-of-words (bow) targets
-
-    $ python train_cnnattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0005 --seed 1
 
 To visualise the training process
 
     $ tensorboard --logdir=runs
 
-### Evaluate CNNAttend model
-
-    python test_cnnattend.py --model_path 1623513734_cnnattend_bow --target_type bow --test_threshold 0.5
-
-### Train CNN_PoolAttend model Bag-of-words (bow) targets
-
-    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001 --data_size 100 --seed 42
-
-### Evaluate CNN_PoolAttend model
-
-    $ python test_cnnpoolattend.py --model_path 1623431631_cnnpoolattend_bow --target_type bow --test_threshold 0.5
-
+### Tuning Hyperparameters
+    python train_cnnattend_withlrscheduler.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.1 --seed 1
+    python tuning_test.py --model_path 1649752659_cnnattend_soft --target_type soft --test_threshold 0.5
 
 ### Train CNNAttend model using soft (visual) targets
 
@@ -114,31 +110,6 @@ To visualise the training process
     Precision: 24.7406%
     Recall: 20.9504%
     F-score: 22.6883%
-
-### denseCNNPoolAttend BoW
-
-    python dense_localise.py --model_path 1623431631_cnnpoolattend_bow --target_type bow --test_threshold 0.5 --min_frame 20 --max_frame 60 --step 3
-    python dense_localise_204060.py --model_path 1623431631_cnnpoolattend_bow --target_type bow --test_threshold 0.5 --min_frame 20 --max_frame 60 --step 3
-
-#### Results
-
-    Sigmoid threshold: 0.40
-    Precision: 47.4598%
-    Recall: 62.6971%
-    F-score: 54.0246%
-
-### dense CNNPoolAttend Visual
-
-    python dense_localise.py --model_path 1623491324_cnnpoolattend_soft --target_type soft --test_threshold 0.5 --min_frame 20 --max_frame 60 --step 3
-    python dense_localise_204060.py --model_path 1623491324_cnnpoolattend_soft --target_type soft --test_threshold 0.5 --min_frame 20 --max_frame 60 --step 3
-
-#### Results
-
-    Sigmoid threshold: 0.50
-    Precision: 19.7667%
-    Recall: 14.7120%
-    F-score: 16.8688%
-
 
 ### Masked denseCNNAttend BoW
 
@@ -189,22 +160,6 @@ To visualise the training process
     Precision: 19.3309%
     Recall: 12.4089%
     F-score: 15.1151%
-
-
-### Keyword Spotting CNN-Attend BoW
-
-    python kws_cnnattend.py --model_path 1623513734_cnnattend_bow --target_type bow --analyze
-
-#### Results
-    Keyword spotting
-    Average P@10: 0.9448
-    Average P@N: 0.8117
-    Average EER: 0.0516
-
-    Keyword spotting localisation
-    Average P@10: 0.6507
-    Average P@N: 0.5968
-
 
 ### Keyword Spotting CNN-Attend Soft
 

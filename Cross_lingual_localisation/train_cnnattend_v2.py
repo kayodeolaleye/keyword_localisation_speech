@@ -1,11 +1,9 @@
-from html import entities
 from time import monotonic
 import torch
 import numpy as np
 from tqdm import tqdm
 import time
 import calendar
-import random
 from os import path
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
@@ -14,15 +12,12 @@ from data_gen import Flickr8kDataset, pad_collate
 from models.cnnattend import CNNAttend
 from models.optimizer import PSCOptimizer
 import wandb
-
-wandb.init(project='Cross-lingual Keyword Localisation', entity="collarkay")
-
+wandb.login()
 from utils import ensure_folder, get_logger, parse_args, save_checkpoint, AverageMeter, write_hist_to_tb, write_scalar_to_tb
 
 def train_net(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    random.seed(args.seed)
 
     model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type
     print("Model ID: ", model_id)
@@ -65,76 +60,70 @@ def train_net(args):
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False, num_workers=num_workers)
 
     # Epochs
-    for epoch in range(start_epoch, args.epochs):
-        # One epoch's training
-        train_loss = train(train_loader, model=model, optimizer=optimizer, epoch=epoch, logger=logger, target_type=args.target_type)
-        
-        # lr = optimizer.lr
-        # print('\nLearning rate: {}'.format(lr))
-        # step_num = optimizer.step_num
-        # print('Step num: {}\n'.format(step_num))
+    # tell wandb to get started
+    with wandb.init(project="Cross-lingual model training", config=config):
+        config = wandb.config
+        # tell wandb to watch what tje model gets up yo: gradients, weights, and more
+        wandb.watch(model, criterion, log="all", log_freq=10)
+        for epoch in range(start_epoch, args.epochs):
+            # One epoch's training
+            train_loss = train(train_loader, model=model, optimizer=optimizer, epoch=epoch, logger=logger, target_type=args.target_type)
 
-        # One epoch's validation
-        valid_loss, valid_precision, valid_recall, valid_fscore = valid(valid_loader=valid_loader, model=model, logger=logger, threshold=args.val_threshold)
+            # One epoch's validation
+            valid_loss, valid_precision, valid_recall, valid_fscore = valid(valid_loader=valid_loader, model=model, logger=logger, threshold=args.val_threshold)
+            write_scalar_to_tb(
+                writer,
+                # lr,
+                epoch,
+                train_loss,
+                valid_loss,
+                valid_precision,
+                valid_recall,
+                valid_fscore)
+            
+            write_hist_to_tb(writer, model, epoch)
 
-        wandb.log({"loss": valid_loss, "epochs": 100, "batch_size": 32})
-        write_scalar_to_tb(
-            writer,
-            # lr,
-            epoch,
-            train_loss,
-            valid_loss,
-            valid_precision,
-            valid_recall,
-            valid_fscore)
-        
-        write_hist_to_tb(writer, model, epoch)
+            # Check if there was an improvement
+            is_best_loss = valid_loss < best_loss
+            best_loss = min(valid_loss, best_loss)
 
-        # Check if there was an improvement
-        is_best_loss = valid_loss < best_loss
-        best_loss = min(valid_loss, best_loss)
+            is_best_precision = valid_precision > best_precision
+            best_precision = max(valid_precision, best_precision)
 
-        is_best_precision = valid_precision > best_precision
-        best_precision = max(valid_precision, best_precision)
+            is_best_recall = valid_recall > best_recall
+            best_recall = max(valid_recall, best_recall)
 
-        is_best_recall = valid_recall > best_recall
-        best_recall = max(valid_recall, best_recall)
+            is_best_fscore = valid_fscore > best_fscore
+            best_fscore = max(valid_fscore, best_fscore)
 
-        is_best_fscore = valid_fscore > best_fscore
-        best_fscore = max(valid_fscore, best_fscore)
+            if not(is_best_loss or is_best_precision or is_best_recall or is_best_fscore):
+                epochs_since_improvement += 1
+                print("\nEpochs since last improvement: %d\n" % (epochs_since_improvement,))
+            else:
+                epochs_since_improvement = 0
 
-        if not(is_best_loss or is_best_precision or is_best_recall or is_best_fscore):
-            epochs_since_improvement += 1
-            print("\nEpochs since last improvement: %d\n" % (epochs_since_improvement,))
-        else:
-            epochs_since_improvement = 0
+            # Save checkpoint
+            save_checkpoint(
+                epoch, epochs_since_improvement, model, optimizer, best_loss, is_best_loss, 
+                best_precision, is_best_precision, best_recall, is_best_recall, best_fscore, 
+                is_best_fscore, model_path)
 
-        # Save checkpoint
-        save_checkpoint(
-            epoch, epochs_since_improvement, model, optimizer, best_loss, is_best_loss, 
-            best_precision, is_best_precision, best_recall, is_best_recall, best_fscore, 
-            is_best_fscore, model_path)
-
-
-    
     torch.save(model.state_dict(), path.join(model_path, "model.pth"))
     print("Model ID: ", model_id)
 
 def train(train_loader, model, optimizer, epoch, logger, target_type):
     model.train()
     losses = AverageMeter()
-    # word_freq = np.load("data/word_freq_train.npy")
-    # weighted_word_freq = torch.from_numpy(np.array([i/np.sum(word_freq) for i in word_freq]))
 
     # Create loss function
     # criterion = nn.BCELoss()
-    # weighted_word_freq = weighted_word_freq.to(device)
-    criterion = nn.BCEWithLogitsLoss()
+    weight = torch.rand(67).to(device)
+    criterion = nn.BCEWithLogitsLoss(weight=weight)
     # Batches
     for i, (data) in enumerate(train_loader):
         # Move to GPU, if available
         target = None
-        padded_input, bow_target, soft_target, _, input_lengths = data
+        padded_input, bow_target, soft_target, _, vocab_soft, input_lengths = data
         padded_input = padded_input.to(device)
         input_lengths = input_lengths.to(device)
         if target_type == 'bow':
@@ -182,7 +171,7 @@ def valid(valid_loader, model, logger, threshold):
     # Batches
     for data in tqdm(valid_loader):
         # Move to GPU, if available
-        padded_input, bow_target, _, __, input_lengths = data
+        padded_input, bow_target, _, __, voca_soft, input_lengths = data
         # padded_input = torch.transpose(padded_input, 2, 1)
         padded_input = padded_input.to(device)
         input_lengths = input_lengths.to(device)
@@ -194,8 +183,8 @@ def valid(valid_loader, model, logger, threshold):
 
         # Keep track of metrics
         losses.update(loss.item())
-        sigmoid_out = torch.sigmoid(out).cpu()
-        # sigmoid_out = out.cpu()
+        # sigmoid_out = torch.sigmoid(out).cpu()
+        sigmoid_out = out.cpu()
         sigmoid_out_thresholded = torch.ge(sigmoid_out, threshold).float()
         n_tp += torch.sum(sigmoid_out_thresholded * target.cpu()).numpy()
         n_tp_fp += torch.sum(sigmoid_out_thresholded).numpy()

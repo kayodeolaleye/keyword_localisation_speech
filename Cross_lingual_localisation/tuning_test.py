@@ -102,7 +102,6 @@ if __name__ == "__main__":
             
             sigmoid_out = torch.sigmoid(out)
         all_full_sigmoid_out[key] = sigmoid_out.squeeze(0).cpu()
-        # print("sigmoid shape: ", sigmoid_out.shape)
         # Evaluating model's performance on detection of keywords in one utterance
         hyp_trn = [iVOCAB[i] for i in np.where(sigmoid_out.squeeze(0).cpu() >= args.test_threshold)[0]]
         # print("GT: {}\n HYP: {}".format(gt_trn, hyp_trn))
@@ -116,8 +115,7 @@ if __name__ == "__main__":
         
         attention_weights = attention_weights.squeeze(0)[:, :input_length]
         all_attention_weight[key] = attention_weights.cpu().numpy()
-        # print(attention_weights.shape)
-        # print("Attention weights score shape: ", attention_weights.shape)
+ 
         tokens = list(VOCAB.keys())
         valid_hyp_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in tokens if tok.casefold() in hyp_trn] # List of words detected by model with a prob > a threshold
         valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn] # if tok.casefold() in tokens] # remove tokens that are not in the speech vocabulary
@@ -136,41 +134,14 @@ if __name__ == "__main__":
             token_max_frame = np.argmax(token_attn_weight)
             hyp_duration.append((token_max_frame, tok[0]))
 
-            if args.plot:
-                import matplotlib.pyplot as plt
-                target_dur_yor = get_target_duration(key, textgrid_base_lst, TextGrid_folder)
-                fig, axs = plt.subplots(2, 1, figsize=(55, 10))
-                plot_audio(axs[0], wave)
-                plot_location(axs[1],token_attn_weight, tok, target_dur_yor, key)
-                plt.tight_layout()
-                file_path = path.join("plots", key, tok[0] + ".pdf")
-                plt.savefig(file_path, dpi=150)
-                plt.close("all")
+            
 
         # ground truth start and end time for each word in utterance
         token_gt_duration = get_gt_token_duration(key, textgrid_base_lst, yor_to_eng_word_dict, valid_gt_trn, root_path=TextGrid_folder) 
-        # print(key)
-        # print("hyp_duration: ", hyp_duration)
-        # print("gt_duration: ", token_gt_duration)
-
-        l_analysis = get_localisation_metric_count(hyp_duration, token_gt_duration)
-        l_n_tp += l_analysis[0]
-        l_n_fp += l_analysis[1]
-        l_n_fn += l_analysis[2]
-
-        s, t = eval_localisation_accuracy(hyp_duration, token_gt_duration)
-        score += s
-        total += t
 
     # Compute precision, recall and fscore for detection task
     d_precision, d_recall, d_fscore = eval_detection_prf(d_n_tp, d_n_tp_fp, d_n_tp_fn)
 
-    # Compute precision, recall and fscore for localisation task
-    l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
-    out_dir = "outputs/" + args.model_path
-    ensure_folder(out_dir)
-    np.savez_compressed(out_dir + "/all_full_sigmoid_out.npz", **all_full_sigmoid_out)
-    np.savez_compressed(out_dir + "/all_attention_weight.npz", **all_attention_weight)
     # Print status
     print
     print("-"*79)
@@ -182,18 +153,5 @@ if __name__ == "__main__":
     print("Recall: {} / {} = {:.4f}%".format(d_n_tp, d_n_tp_fn, d_recall*100.))
     print("F-score: {:.4f}%".format(d_fscore*100.))
     print("-"*79)
-
-    print
-    print("-"*79)
-    print("LOCALISATION SCORES: ")
-    print("Sigmoid threshold: {:.2f}".format(args.test_threshold))
-    print("No. predictions:", l_n_fp)
-    print("No. true tokens:", l_n_fn)
-    print("Precision: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fp), l_precision*100.))
-    print("Recall: {} / {} = {:.4f}%".format(l_n_tp, (l_n_tp + l_n_fn), l_recall*100.))
-    print("F-score: {:.4f}%".format(l_fscore*100.))
-    print("Accuracy: {} / {} =  {:.4f}%".format(score, total, (score/total) * 100.0))
-    print("-"*79)
-
 
     

@@ -1,11 +1,9 @@
-from html import entities
 from time import monotonic
 import torch
 import numpy as np
 from tqdm import tqdm
 import time
 import calendar
-import random
 from os import path
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
@@ -13,16 +11,13 @@ from config import device, num_workers, print_freq, trained_model_dir
 from data_gen import Flickr8kDataset, pad_collate
 from models.cnnattend import CNNAttend
 from models.optimizer import PSCOptimizer
-import wandb
-
-wandb.init(project='Cross-lingual Keyword Localisation', entity="collarkay")
+import matplotlib.pyplot as plt        
 
 from utils import ensure_folder, get_logger, parse_args, save_checkpoint, AverageMeter, write_hist_to_tb, write_scalar_to_tb
 
 def train_net(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    random.seed(args.seed)
 
     model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type
     print("Model ID: ", model_id)
@@ -44,10 +39,15 @@ def train_net(args):
         print(model)
         model.to(device)
 
-        # optimizer = PSCOptimizer(torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-09))
-
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+        # Learning rate scheduler options
+        if args.lr_schedule and args.scheduler_type == "plateauLR":
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=2)
+        if args.lr_schedule and args.scheduler_type == "lambdaLR":
+            lambda1 = lambda epoch: epoch // 30
+            lambda2 = lambda epoch: 0.95 ** epoch
+            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=[lambda1, lambda2])
 
     else:
         checkpoint = torch.load(checkpoint)
@@ -55,6 +55,7 @@ def train_net(args):
         epochs_since_improvement = checkpoint['epochs_since_improvement']
         model = checkpoint['model']
         optimizer = checkpoint['optimizer']
+        scheduler = checkpoint['scheduler']
     
     logger = get_logger()
 
@@ -65,19 +66,26 @@ def train_net(args):
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False, num_workers=num_workers)
 
     # Epochs
+    lrs = []
     for epoch in range(start_epoch, args.epochs):
         # One epoch's training
         train_loss = train(train_loader, model=model, optimizer=optimizer, epoch=epoch, logger=logger, target_type=args.target_type)
         
-        # lr = optimizer.lr
-        # print('\nLearning rate: {}'.format(lr))
-        # step_num = optimizer.step_num
-        # print('Step num: {}\n'.format(step_num))
-
         # One epoch's validation
         valid_loss, valid_precision, valid_recall, valid_fscore = valid(valid_loader=valid_loader, model=model, logger=logger, threshold=args.val_threshold)
 
-        wandb.log({"loss": valid_loss, "epochs": 100, "batch_size": 32})
+        lrs.append(optimizer.param_groups[0]["lr"])
+
+        if args.lr_schedule: 
+            if args.scheduler_type == "plateauLR":
+                scheduler.step(valid_loss)
+            else:
+                scheduler.step()
+
+ 
+        plt.plot(lrs)
+        plt.savefig("LR_scheduling.pdf", dpi=150)
+        print("Last Learning Rate: ", scheduler.get_last_lr())
         write_scalar_to_tb(
             writer,
             # lr,
@@ -113,23 +121,19 @@ def train_net(args):
         save_checkpoint(
             epoch, epochs_since_improvement, model, optimizer, best_loss, is_best_loss, 
             best_precision, is_best_precision, best_recall, is_best_recall, best_fscore, 
-            is_best_fscore, model_path)
+            is_best_fscore, model_path, scheduler)
 
-
-    
     torch.save(model.state_dict(), path.join(model_path, "model.pth"))
+
     print("Model ID: ", model_id)
 
 def train(train_loader, model, optimizer, epoch, logger, target_type):
+    
     model.train()
     losses = AverageMeter()
-    # word_freq = np.load("data/word_freq_train.npy")
-    # weighted_word_freq = torch.from_numpy(np.array([i/np.sum(word_freq) for i in word_freq]))
 
     # Create loss function
-    # criterion = nn.BCELoss()
-    # weighted_word_freq = weighted_word_freq.to(device)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCELoss()
     # Batches
     for i, (data) in enumerate(train_loader):
         # Move to GPU, if available
@@ -147,8 +151,7 @@ def train(train_loader, model, optimizer, epoch, logger, target_type):
 
         # Forward prop.
         out, attention_Weights = model(padded_input)
-        # loss = criterion(torch.sigmoid(out), target)
-        loss = criterion(out, target)
+        loss = criterion(torch.sigmoid(out), target)
 
         # Back prop.
         optimizer.zero_grad()
@@ -156,7 +159,6 @@ def train(train_loader, model, optimizer, epoch, logger, target_type):
 
         # update weights
         optimizer.step()
-
         # Keep track of metrics
         losses.update(loss.item())
 
@@ -164,7 +166,7 @@ def train(train_loader, model, optimizer, epoch, logger, target_type):
         if i % print_freq == 0:
             logger.info('Epoch: [{0}][{1}/{2}]\t'
             'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(epoch, i, len(train_loader), loss=losses))
-
+    
     return losses.avg
 
 
@@ -176,8 +178,7 @@ def valid(valid_loader, model, logger, threshold):
     n_tp_fn = 0 # (tp + fn)
 
     # Create loss function
-    # criterion = nn.BCELoss()
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCELoss()
 
     # Batches
     for data in tqdm(valid_loader):
@@ -189,13 +190,11 @@ def valid(valid_loader, model, logger, threshold):
         target = bow_target.to(device)
         # Forward prop.
         out, attention_weights = model(padded_input)
-        # loss = criterion(torch.sigmoid(out), target)
-        loss = criterion(out, target)
+        loss = criterion(torch.sigmoid(out), target)
 
         # Keep track of metrics
         losses.update(loss.item())
         sigmoid_out = torch.sigmoid(out).cpu()
-        # sigmoid_out = out.cpu()
         sigmoid_out_thresholded = torch.ge(sigmoid_out, threshold).float()
         n_tp += torch.sum(sigmoid_out_thresholded * target.cpu()).numpy()
         n_tp_fp += torch.sum(sigmoid_out_thresholded).numpy()

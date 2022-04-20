@@ -23,6 +23,11 @@ def get_data(split):
     # Forced alignments (ctm) 
     ctm_dict = ctm_to_dict(flickr8k_ctm_fn)
 
+    # word_count_dict = {}
+    # for word in VOCAB:
+    #     word_count_dict[word] = 0
+
+    word_freq = np.zeros(67)
     samples = []
     folder = path.join(wav_folder, split)
     dirs = [path.join(folder, d) for d in listdir(folder) if path.isdir(path.join(folder, d))]
@@ -36,9 +41,11 @@ def get_data(split):
             if key in tran_dict:
                 trn = tran_dict[key]
                 soft = np.array([soft_tags_dict[key[:-2]][vocab_soft_all[word]] for word in VOCAB])
+                for i in range(len(word_freq)):
+                    if soft[i] > 0.4:
+                        word_freq[i] += 1
 
                 ctm_entry = ctm_dict[key[:-2] + ".jpg_#" + key[-1]]
-                # utt_start = ctm_entry[0][0] removing the silence based on the forced alignment
                 utt_start = 0
                 for start, dur, label in ctm_entry:
                     xstart = round((start - utt_start) * 100)
@@ -47,7 +54,8 @@ def get_data(split):
 
                 samples.append({'trn': trn, 'soft': soft, 'wave': wave, 'dur': target_dur})
     print("Split: {}, num_files: {}".format(split, len(samples)))
-    
+    np.save("data/word_freq_" + split + ".npy", word_freq)
+    print(word_freq)
     return samples
 
 def get_vocab():

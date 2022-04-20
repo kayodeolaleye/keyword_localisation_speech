@@ -15,7 +15,7 @@ def prepare_data_split(base_dir, speaker_id, splits=["train", "dev", "test"]):
         with open(subset_fn) as f:
             for line in f:
                 keys.append(path.splitext(line.strip())[0])
-        source = os.path.join(base_dir, "flickr_audio_yoruba_" + subset)
+        source = os.path.join(base_dir, "flickr_audio_yoruba_" + subset, "16k")
         wav_list = glob.glob(path.join(source, "*"))
         for file in wav_list:
             destination = path.join(wav_folder, subset, speaker_id)
