@@ -8,11 +8,6 @@ import numpy as np
 from torch.utils.data.dataloader import default_collate
 from config import pickle_file, input_dim, num_workers, tran_folder, soft_tags_fn
 
-# torch.manual_seed(1)
-# random.seed(1)
-# np.random.seed(1)
-# torch.cuda.manual_seed(1)
-
 class Flickr8kDataset(Dataset):
     def __init__(self, subset):
         with open(pickle_file, 'rb') as file:
@@ -58,21 +53,41 @@ def pad_collate(batch):
     #     max_input_len = max_input_len if max_input_len > feature.shape[0] else feature.shape[0]
         # max_target_len = max_target_len if max_target_len > len(trn) else len(trn)
 
-    for i, elem in enumerate(batch):
-        feature, trn, soft, dur = elem
-        input_length = feature.shape[0]
-        input_dim = feature.shape[1]
-        padded_input = np.zeros((max_input_len, input_dim), dtype=np.float32)
-        length = min(input_length, max_input_len)
-        padded_input[:length, :] = feature[:length, :]
-        bow_vector = get_bow_vector(trn)
+    batch_len = len(batch)
+    # print(batch_len)
     
-        batch[i] = (np.transpose(padded_input, (1, 0)), bow_vector, soft, dur, input_length)
+    padded_input_batch = torch.tensor(np.zeros((batch_len, 800, 39), dtype=np.float32).transpose(0,2,1))
+    # print(padded_input_batch.shape)
+    
+    bow_vector_batch = torch.from_numpy(np.array([get_bow_vector(x[1]) for x in batch]))
+    # print(len(bow_vector_batch))
+
+    soft_batch = torch.from_numpy(np.array([x[2] for x in batch]))
+    # print(len(soft_batch))
+
+    dur_batch = [x[3] for x in batch]
+
+    input_length_batch = torch.from_numpy(np.repeat([800], batch_len))
+    # print(input_length_batch)
+    # print(input_length_batch)
+
+
+    # for i, elem in enumerate(batch):
+    #     feature, trn, soft, dur = elem
+    
+
+    #     bow_vector = get_bow_vector(trn)
+        
+        # print("------------------------------")
+        # print((np.transpose(padded_input, (1, 0)), bow_vector, soft, dur, input_length))
+        # print(padded_input.shape, bow_vector.shape, len(soft), len(dur), input_length)
+        # print("------------------------------")
+        # batch[i] = (np.transpose(padded_input, (1, 0)), bow_vector, soft, dur, input_length)
 
     # sort it by input lengths (long to short)
-    batch.sort(key=lambda x: x[4], reverse=True)
+    # batch.sort(key=lambda x: x[4], reverse=True)
 
-    return default_collate(batch)
+    return padded_input_batch, bow_vector_batch, soft_batch, dur_batch, input_length_batch
 
 # if __name__ == "__main__":
 #     args = parse_args()

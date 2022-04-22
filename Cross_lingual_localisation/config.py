@@ -6,7 +6,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # sets de
 # Model parameters
 input_dim = 39  # dimension of feature
 
-num_workers = 1  # for data-loading; right now, only 1 works with h5py
+num_workers = 0  # for data-loading; right now, only 1 works with h5py
 
 # Training parameters
 print_freq = 100  # print training/validation stats  every __ batches

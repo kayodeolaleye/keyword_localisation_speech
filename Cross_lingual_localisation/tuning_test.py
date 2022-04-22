@@ -62,7 +62,7 @@ if __name__ == "__main__":
         print("Invalid target type")
 
     
-    samples = data["test"] # change to "test" later on
+    samples = data["dev"] # change to "test" later on
 
     # print(VOCAB)
     checkpoint =path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")

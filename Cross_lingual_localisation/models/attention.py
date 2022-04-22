@@ -1,7 +1,8 @@
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 
 class DotProductAttention(nn.Module):
     """ Implementation of the dot product attention as described in https://ieeexplore.ieee.org/abstract/document/9054678.
@@ -26,6 +27,6 @@ class DotProductAttention(nn.Module):
         """
         sim_scores = torch.matmul(q_embed, conv_feat)
         attention_weights = F.softmax(sim_scores, dim=2)
-        context_vector = torch.bmm(attention_weights, conv_feat.transpose(1, 2))
+        context_vector = torch.matmul(attention_weights, conv_feat.transpose(1, 2))
 
         return context_vector, attention_weights
