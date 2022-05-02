@@ -65,8 +65,8 @@ if __name__ == "__main__":
     samples = data["dev"] # change to "test" later on
 
     # print(VOCAB)
-    checkpoint =path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")
-    checkpoint = torch.load(checkpoint, map_location="cpu")
+    checkpoint_path = path.join(trained_model_dir, args.model_path, "BEST_checkpoint.tar")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
     model = checkpoint["model"].to(device)
     model.eval()
     num_samples = len(samples)

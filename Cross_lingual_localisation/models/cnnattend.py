@@ -6,7 +6,7 @@ from models.attention import DotProductAttention
 
 class CNNAttend(nn.Module):
 
-    def __init__(self, vocab_size, embed_size):
+    def __init__(self, vocab_size, embed_size, fc_layer_size, dropout):
         super(CNNAttend, self).__init__()
 
         # Convolutional module
@@ -15,7 +15,7 @@ class CNNAttend(nn.Module):
                 nn.LeakyReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
-                nn.ReLU(),
+                nn.LeakyReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
                 nn.LeakyReLU(),
@@ -30,20 +30,6 @@ class CNNAttend(nn.Module):
                 # nn.ReLU()
             )
 
-        # self.conv_module = nn.Sequential(
-        #         nn.Conv1d(39, 256, 9, 1, 4),
-        #         nn.ReLU(),
-        #         nn.Conv1d(256, 256, 11, 1, 5),
-        #         nn.ReLU(),
-        #         nn.Conv1d(256, 256, 11, 1, 5),
-        #         nn.ReLU(),
-        #         nn.Conv1d(256, 256, 11, 1, 5),
-        #         nn.ReLU(),
-        #         nn.Conv1d(256, 256, 11, 1, 5),
-        #         nn.ReLU(),
-        #         nn.Conv1d(256, embed_size, 11, 1, 5)
-        #         # nn.ReLU()
-        #     )
         # Embedding module
         self.embed = embed_queries(embed_size, vocab_size)
         
@@ -52,11 +38,10 @@ class CNNAttend(nn.Module):
         
         # MLP module
         self.mlp_module = nn.Sequential(
-
-            nn.Linear(embed_size, 4096),
+            nn.Linear(embed_size, fc_layer_size),
             nn.ReLU(),
-            nn.Linear(4096, 1),
-            nn.Dropout(p=0.0)
+            nn.Linear(fc_layer_size, 1),
+            nn.Dropout(p=dropout)
     )
 
     def forward(self, x):
@@ -68,8 +53,6 @@ class CNNAttend(nn.Module):
         return output, attention_weights
 
 def embed_queries(embed_size, vocab_size):
-    # torch.manual_seed(1)
-    # np.random.seed(1)
     q_embed = torch.zeros(vocab_size, embed_size)
     embeddings = nn.Embedding(vocab_size, embed_size)
     for i in range(vocab_size):

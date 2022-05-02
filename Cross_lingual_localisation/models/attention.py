@@ -25,8 +25,10 @@ class DotProductAttention(nn.Module):
             
 
         """
+        # print("q_emb: ", q_embed.shape)
+        # print("conv_feat: ", conv_feat.shape)
         sim_scores = torch.matmul(q_embed, conv_feat)
         attention_weights = F.softmax(sim_scores, dim=2)
         context_vector = torch.matmul(attention_weights, conv_feat.transpose(1, 2))
-
+        # print("context_vector: ", context_vector.shape)
         return context_vector, attention_weights

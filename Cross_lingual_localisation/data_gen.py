@@ -33,7 +33,7 @@ class Flickr8kDataset(Dataset):
         # Zero mean and unit variance
         feature = (feature - feature.mean()) / feature.std()
         
-        feature = spec_augment(feature)
+        # feature = spec_augment(feature)
         
         return feature, trn, soft, dur
 

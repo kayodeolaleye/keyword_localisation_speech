@@ -40,6 +40,9 @@ def parse_args():
     parser.add_argument("--seed", default=42, type=int, help='initialize the random number generator')
     parser.add_argument("--lr_schedule", action='store_true', help='Learning rate scheduler')
     parser.add_argument('--scheduler_type', type=str, default=None, help='Choose a learning rate scheduler to use')
+    parser.add_argument('--fc_layer_size', type=int, default=4096, help='Choose how many units of fc layer to use')
+    parser.add_argument('--dropout', type=int, default=0.0, help='Choose dropout value to use')
+
 
     
 
@@ -242,8 +245,6 @@ def extract_feature_test(
     save_feature=None):
 
     y, sr = librosa.load(input_file, sr=sr)
-    # yt, _ = librosa.effects.trim(y, top_db=20) # remove sound trimming during testing
-    # yt = normalize(yt)
     yt = normalize(y)
     yt = preemphasis(yt, preemph_coef)
     ws = int(sr * 0.001 * window_size)

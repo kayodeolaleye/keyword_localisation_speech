@@ -18,63 +18,60 @@ from models.cnnattend import CNNAttend
 import wandb
 from utils import ensure_folder, get_logger, parse_args, save_checkpoint, AverageMeter, write_hist_to_tb, write_scalar_to_tb
 
-
-wandb.init(project='Cross-lingual Keyword Localisation', entity="collarkay")
-# sweep_config_fn = "config.yaml"
-# sweep_id = wandb.sweep(sweep_config_fn, project="pytorch-sweeps-demo")
-def train_net(args, config=None):
-    
-    
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed) 
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(args.seed)
-        torch.cuda.manual_seed_all(args.seed)
-    torch.backends.cudnn.deterministic = True
-  
-    model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type # + "_random_data"
-    print("Model ID: ", model_id)
-    model_path = path.join(trained_model_dir, model_id)
-    ensure_folder(model_path)
-    checkpoint = args.checkpoint
-    start_epoch = 0
-    best_loss = float('inf')
-    best_precision = float('-inf')
-    best_recall = float('-inf')
-    best_fscore = float('-inf')
-    writer = SummaryWriter(log_dir=path.join("runs", model_id))
-    epochs_since_improvement = 0
-
-    # Initialise / load checkpoint
-    if checkpoint is None:
-        # model
-        model = CNNAttend(args.vocab_size, args.embed_size, args.fc_layer_size, args.dropout)
-        print(model)
-        model.to(device)
-
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-
-    else:
-        checkpoint = torch.load(checkpoint)
-        start_epoch = checkpoint['epoch'] + 1
-        epochs_since_improvement = checkpoint['epochs_since_improvement']
-        model = checkpoint['model']
-        optimizer = checkpoint['optimizer']
-    
-    logger = get_logger()
-
-    # Custom dataloaders
-    train_dataset = Flickr8kDataset('train')
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=True)
-    valid_dataset = Flickr8kDataset('dev') # use all the available dev set
-    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False)
-
+def train_net(config=None):
     with wandb.init(config=config):
         config = wandb.config
+        args = parse_args()
+        
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed) 
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(args.seed)
+            torch.cuda.manual_seed_all(args.seed)
+        # torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+    
+        model_id = str(calendar.timegm(time.gmtime())) + "_cnnattend_" + args.target_type
+        print("Model ID: ", model_id)
+        model_path = path.join(trained_model_dir, model_id)
+        ensure_folder(model_path)
+        checkpoint = args.checkpoint
+        start_epoch = 0
+        best_loss = float('inf')
+        best_precision = float('-inf')
+        best_recall = float('-inf')
+        best_fscore = float('-inf')
+        writer = SummaryWriter(log_dir=path.join("runs", model_id))
+        epochs_since_improvement = 0
+
+        # Initialise / load checkpoint
+        if checkpoint is None:
+            # model
+            model = CNNAttend(args.vocab_size, args.embed_size, config.fc_layer_size, config.dropout)
+            print(model)
+            model.to(device)
+
+            optimizer = build_optimizer(model, config.optimizer, config.learning_rate)
+            # optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+
+
+        else:
+            checkpoint = torch.load(checkpoint)
+            start_epoch = checkpoint['epoch'] + 1
+            epochs_since_improvement = checkpoint['epochs_since_improvement']
+            model = checkpoint['model']
+            optimizer = checkpoint['optimizer']
+        
+        logger = get_logger()
+
+        # Custom dataloaders
+        train_dataset = Flickr8kDataset('train')
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=True)
+        valid_dataset = Flickr8kDataset('dev') # use all the available dev set
+        valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=config.batch_size, collate_fn=pad_collate, pin_memory=True, shuffle=False)
         # Epochs
-        for epoch in range(start_epoch, args.epochs):
+        for epoch in range(start_epoch, config.epochs):
             # One epoch's training
             train_loss = train(train_loader, model=model, optimizer=optimizer, epoch=epoch, logger=logger, target_type=args.target_type)
 
@@ -123,6 +120,15 @@ def train_net(args, config=None):
     
     torch.save(model.state_dict(), path.join(model_path, "model.pth"))
     print("Model ID: ", model_id)
+
+def build_optimizer(network, optimizer, learning_rate):
+    if optimizer == "sgd":
+        optimizer = torch.optim.SGD(network.parameters(),
+                              lr=learning_rate, momentum=0.9)
+    elif optimizer == "adam":
+        optimizer = torch.optim.Adam(network.parameters(),
+                               lr=learning_rate)
+    return optimizer
 
 def train(train_loader, model, optimizer, epoch, logger, target_type):
     model.train()
@@ -225,11 +231,60 @@ def valid(valid_loader, model, logger, threshold):
 
 
 def main():
-    global args
-    # wandb.init(project='Cross-lingual Keyword Localisation', entity="collarkay")
     
-    args = parse_args()
-    train_net(args)
+    sweep_config = {
+    'method': 'random'
+    }
+    metric = {
+    'name': 'loss',
+    'goal': 'minimize'   
+    }
+
+    sweep_config['metric'] = metric
+
+    parameters_dict = {
+    'optimizer': {
+        'value': 'adam'
+        },
+    'fc_layer_size': {
+        'value': 4096
+        },
+    'dropout': {
+          'values': [0.0, 0.00001]
+        },
+    }
+
+    sweep_config['parameters'] = parameters_dict
+
+    parameters_dict.update({
+    'learning_rate': {
+        # a flat distribution between 0.0001 and 0.001
+        'distribution': 'uniform',
+        'min': 0.0001,
+        'max': 0.0005
+      },
+    'batch_size': {
+        # integers between 32 and 256
+        # with evenly-distributed logarithms 
+        'distribution': 'q_log_uniform_values',
+        'q': 8,
+        'min': 32,
+        'max': 64,
+      }
+    })
+
+    parameters_dict.update({
+    'epochs': {
+        'value': 100}
+    })
+
+    import pprint
+
+    pprint.pprint(sweep_config)
+
+    sweep_id = wandb.sweep(sweep_config, project="pytorch-sweeps-crosslingual-demo")
+    # train_net(args)
+    wandb.agent(sweep_id, train_net, count=10)
 
     # Run training script max_iter times sequentially
     # iter = 0
