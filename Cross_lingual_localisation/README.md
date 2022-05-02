@@ -60,7 +60,7 @@ To visualise the training process
     $ tensorboard --logdir=runs
 
 ### Tuning Hyperparameters with wandb
-    python train_cnnattend_withlrscheduler.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.1 --seed 1
+    python train_cnnattend_wandb_sweep.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.1 --seed 1
     python tuning_test.py --model_path 1649752659_cnnattend_soft --target_type soft --test_threshold 0.5
 
 ### Train CNNAttend model using soft (visual) targets
