@@ -75,3 +75,11 @@ To visualise the training process
 
     $ python test_cnnattend.py --model_path 1623340455_cnnattend_soft --target_type soft --test_threshold 0.5
 
+### Keyword Spotting CNN-Attend Soft
+
+    python kws_cnnattend.py --model_path 1623340455_cnnattend_soft --target_type soft --analyze
+
+### denseCNNAttend Visual
+
+    python dense_localise.py --model_path 1623340455_cnnattend_soft --target_type soft --test_threshold 0.5 --min_frame 20 --max_frame 60 --step 3
+    python dense_localise_204060.py --model_path 1623340455_cnnattend_soft --target_type soft --test_threshold 0.5 --min_frame 20 --max_frame 60 --step 3

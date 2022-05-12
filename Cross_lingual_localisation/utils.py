@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument("--seed", default=42, type=int, help='initialize the random number generator')
     parser.add_argument("--lr_schedule", action='store_true', help='Learning rate scheduler')
     parser.add_argument('--scheduler_type', type=str, default=None, help='Choose a learning rate scheduler to use')
-    parser.add_argument('--fc_layer_size', type=int, default=4096, help='Choose how many units of fc layer to use')
+    parser.add_argument('--fc_layer_size', type=int, default=8192, help='Choose how many units of fc layer to use')
     parser.add_argument('--dropout', type=int, default=0.0, help='Choose dropout value to use')
 
 
@@ -320,14 +320,14 @@ def save_checkpoint(epoch, epochs_since_improvement, model, optimizer,loss, is_b
     filename = path.join(model_path, 'checkpoint.tar')
     torch.save(state, filename)
     # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
-    if is_best_loss or is_best_precision or is_best_recall or is_best_fscore:
+    # if is_best_loss or is_best_precision or is_best_recall or is_best_fscore:
+    if is_best_fscore:
         torch.save(state, path.join(model_path, 'BEST_checkpoint.tar'))
 
 class AverageMeter(object):
     """
     Keeps track of most recent, average, sum, and count of a metric.
     """
-
     def __init__(self):
         self.reset()
 

@@ -15,7 +15,7 @@ class CNNAttend(nn.Module):
                 nn.LeakyReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
-                nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
                 nn.LeakyReLU(),

@@ -2,7 +2,7 @@ import pickle
 import torch
 import random
 from os import path
-from utils import extract_feature_train, parse_args, spec_augment
+from utils import extract_feature_train, extract_feature_test, spec_augment
 from torch.utils.data import Dataset
 import numpy as np
 from torch.utils.data.dataloader import default_collate
@@ -19,6 +19,7 @@ class Flickr8kDataset(Dataset):
             data = pickle.load(file)
         # self.vocab = data['VOCAB']
         self.samples = data[subset]
+        self.subset = subset
         # self.args = args
         print("Loading {} {} samples...".format(len(self.samples), subset))
 
@@ -28,12 +29,16 @@ class Flickr8kDataset(Dataset):
         trn = sample["trn"]
         soft = sample["soft"]
         dur = sample["dur"]
-        feature = extract_feature_train(input_file=wave, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True)
+
+        if self.subset == "train":
+            feature = extract_feature_train(input_file=wave, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True)
+        else:
+            feature = extract_feature_test(input_file=wave, feature="mfcc", dim=13, cmvn=True, delta=True, delta_delta=True)
     
         # Zero mean and unit variance
         feature = (feature - feature.mean()) / feature.std()
         
-        # feature = spec_augment(feature)
+        feature = spec_augment(feature)
         
         return feature, trn, soft, dur
 
