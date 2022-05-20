@@ -54,7 +54,7 @@ Pre-process data
 
 ### Train CNNAttend model using Bag-of-words (bow) targets
 
-    $ python train_cnnattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001 --data_size 100
+    $ python train_cnnattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001 --data_size 100 --seed 42
 
 To visualise the training process
 
@@ -66,7 +66,7 @@ To visualise the training process
 
 ### Train CNN_PoolAttend model Bag-of-words (bow) targets
 
-    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001 --data_size 100
+    $ python train_cnnpoolattend.py --target_type bow --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001 --data_size 100 --seed 42
 
 ### Evaluate CNN_PoolAttend model
 
@@ -75,7 +75,7 @@ To visualise the training process
 
 ### Train CNNAttend model using soft (visual) targets
 
-    $ python train_cnnattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001 --data_size 100
+    $ python train_cnnattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1000 --epochs 100 --lr 0.0001 --data_size 100 --seed 42
 
 To visualise the training process
 
@@ -87,7 +87,7 @@ To visualise the training process
 
 ### Train CNN_PoolAttend model soft (visual) targets
 
-    $ python train_cnnpoolattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001 --data_size 100
+    $ python train_cnnpoolattend.py --target_type soft --val_threshold 0.4 --vocab_size 67 --embed_size 1024 --epochs 100 --lr 0.0001 --data_size 100 --seed 42
 
 ### Evaluate CNN_PoolAttend model
 
