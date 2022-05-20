@@ -323,6 +323,10 @@ def save_checkpoint(epoch, epochs_since_improvement, model, optimizer,loss, is_b
     # if is_best_loss or is_best_precision or is_best_recall or is_best_fscore:
     if is_best_fscore:
         torch.save(state, path.join(model_path, 'BEST_checkpoint.tar'))
+        print("Best epoch: ", str(state["epoch"]))
+
+        with open(path.join(model_path, "best_epoch.txt"), 'w') as f:
+            f.write(str(state["epoch"])) 
 
 class AverageMeter(object):
     """
@@ -355,12 +359,14 @@ class AverageMeter(object):
 def get_target_duration(key, textgrids_lst, root_path):
     target_dur = []
     if key in textgrids_lst:
+        # print(key)
         tg = textgrid.TextGrid.fromFile(path.join(root_path, key + ".TextGrid"))
         for i in tg[0]:
             target_dur.append(((int(i.minTime * 100), int(i.maxTime * 100)), i.mark.casefold()))
     return target_dur
 
 def get_gt_token_duration(key, textgrids_list, yor_to_eng_word_dict, valid_gt_trn, root_path=None):
+    
     target_dur = get_target_duration(key, textgrids_list, root_path)
     token_dur = []
     valid_token = [valid_tok for valid_tok, _ in valid_gt_trn]
@@ -428,7 +434,6 @@ def eval_localisation_accuracy(hyp_loc, gt_loc):
         for hyp_frame, hyp_token in hyp_loc:
             if hyp_token == gt_token and (gt_start_end_frame[0] <= hyp_frame < gt_start_end_frame[1] or gt_start_end_frame[0] < hyp_frame <= gt_start_end_frame[1]):
                 score += 1
-
     return score, total
 
 
@@ -546,7 +551,7 @@ def plot_location(ax, token_attn_weight, token, target_dur, key):
 
 def get_token_dur_dict(target_dur):
     token_dur_dict = {}
-    for start_end, dur, tok in target_dur:
+    for start_end, tok in target_dur:
         token_dur_dict[tok.casefold()] = start_end
 
     return token_dur_dict

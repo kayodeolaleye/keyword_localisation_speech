@@ -12,19 +12,19 @@ class CNNAttend(nn.Module):
         # Convolutional module
         self.conv_module = nn.Sequential(
                 nn.Conv1d(39, 96, 9, 1, 4),
-                nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
                 nn.ReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
-                nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
-                nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, 96, 11, 1, 5),
-                nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.BatchNorm1d(96, affine=False),
                 nn.Conv1d(96, embed_size, 11, 1, 5)
                 # nn.ReLU()

@@ -15,7 +15,6 @@ from utils import parse_args, get_yor_eng_word_dict, get_eng_yor_word_dict, plot
 textgrid_paths_lst = glob.glob(path.join(TextGrid_folder, "*"))
 textgrid_base_lst = [os.path.splitext(os.path.basename(file))[0] for file in textgrid_paths_lst]
 # print(textgrid_base_lst)
-sigmoid = lambda x: 1.0 / (1.0 + np.exp(-x))
 # Get a dictionary containing a mapping from Yoruba word to a list of corresponding English words
 yor_to_eng_word_dict = get_yor_eng_word_dict(eng_yor_word_file)
 # print(yor_to_eng_word_dict)
@@ -99,7 +98,6 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             out, attention_weights = model(padded_input)
-            
             sigmoid_out = torch.sigmoid(out)
         all_full_sigmoid_out[key] = sigmoid_out.squeeze(0).cpu()
         # print("sigmoid shape: ", sigmoid_out.shape)
@@ -121,7 +119,6 @@ if __name__ == "__main__":
         tokens = list(VOCAB.keys())
         valid_hyp_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in tokens if tok.casefold() in hyp_trn] # List of words detected by model with a prob > a threshold
         valid_gt_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in gt_trn] # if tok.casefold() in tokens] # remove tokens that are not in the speech vocabulary
-        # print("valid gt_trn: ", valid_gt_trn)
 
         hyp_duration = []
         
@@ -148,10 +145,7 @@ if __name__ == "__main__":
                 plt.close("all")
 
         # ground truth start and end time for each word in utterance
-        token_gt_duration = get_gt_token_duration(key, textgrid_base_lst, yor_to_eng_word_dict, valid_gt_trn, root_path=TextGrid_folder) 
-        # print(key)
-        # print("hyp_duration: ", hyp_duration)
-        # print("gt_duration: ", token_gt_duration)
+        token_gt_duration = get_gt_token_duration(key, textgrid_base_lst, yor_to_eng_word_dict, valid_gt_trn, root_path=TextGrid_folder)
 
         l_analysis = get_localisation_metric_count(hyp_duration, token_gt_duration)
         l_n_tp += l_analysis[0]
