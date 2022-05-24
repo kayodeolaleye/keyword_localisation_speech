@@ -715,11 +715,20 @@ def get_optimizer(model, *, lr, weight_decay):
     return torch.optim.AdamW(group_params, lr=lr)
 
 
-def get_out_dim(hparams):
+def get_dims(hparams):
     if hparams["teacher-model-name"] == "features-image-clip":
-        return 512
+        return {
+            "embed_dim": 512,
+        }
     elif hparams["teacher-model-name"] in {"labels-image-vgg", "labels-text"}:
-        return 67
+        return {
+            "num_classes": 67,
+        }
+    elif hparams["teacher-model-name"] == "features-image-clip+labels-image-vgg":
+        return {
+            "embed_dim": 512,
+            "num_classes": 67,
+        }
     else:
         assert False
 

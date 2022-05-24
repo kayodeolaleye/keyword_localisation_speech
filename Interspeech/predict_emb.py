@@ -47,8 +47,8 @@ from train_emb import (
     KeyImage,
     LabelsTextLoader,
     cross_entropy_symmetric,
+    get_dims,
     get_key_img,
-    get_out_dim,
     get_mutual_information,
     load_hparams,
     pad_collate,
@@ -90,7 +90,7 @@ def load_model_hparams(hparams):
     prefix = "model"
 
     model = AUDIO_MODELS[hparams["audio-model-name"]](
-        hparams["audio-features-size"], get_out_dim(hparams)
+        hparams["audio-features-size"], **get_dims(hparams)
     )
     files = [f for f in os.listdir(output_dir) if f.startswith(prefix)]
     files = sorted(files, key=get_score, reverse=True)
@@ -270,6 +270,15 @@ def compute_keyword_spotting_scores(
     return f(config_name, vocab, samples)
 
 
+def eval_keyword_spotting_1(scores, labels, vocab):
+    ap = 100 * average_precision_score(labels, scores)
+    word_ap = [
+        (word, 100 * average_precision_score(labels[:, i], scores[:, i]))
+        for word, i in vocab.items()
+    ]
+    return ap, word_ap
+
+
 def eval_keyword_spotting(dataset, config_name, vocab_type):
     samples = dataset.samples
     labels_loader = LabelsTextLoader(vocab_type)
@@ -278,13 +287,7 @@ def eval_keyword_spotting(dataset, config_name, vocab_type):
     scores = compute_keyword_spotting_scores(config_name, vocab, samples)
     labels = np.vstack([labels_loader(s) for s in samples])
 
-    ap = 100 * average_precision_score(labels, scores)
-    word_ap = [
-        (word, 100 * average_precision_score(labels[:, i], scores[:, i]))
-        for word, i in vocab.items()
-    ]
-
-    return ap, word_ap
+    return eval_keyword_spotting_1(scores, labels, vocab)
 
 
 LOADERS = {
@@ -301,6 +304,16 @@ for config in os.listdir("config-files"):
     name, ext = os.path.splitext(config)
     if ext == ".json":
         LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
+
+
+for what in ["logits-cls", "audio-emb"]:
+    for λ in "0.1 10".split():
+        name = f"multi-task-lambda-{λ}-{what}"
+        LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
+
+for what in ["logits-cls", "audio-emb"]:
+    name = f"multi-task-{what}"
+    LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
 
 
 MODALITIES = ["audio", "image", "text"]
