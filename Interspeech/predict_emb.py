@@ -307,7 +307,7 @@ for config in os.listdir("config-files"):
 
 
 for what in ["logits-cls", "audio-emb"]:
-    for λ in "0.1 10".split():
+    for λ in "0.01 0.1 10".split():
         name = f"multi-task-lambda-{λ}-{what}"
         LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
 

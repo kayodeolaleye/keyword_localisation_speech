@@ -132,7 +132,15 @@ def compute_scores(config_name, vocab, samples, α=0.5):
     default="vocab-67-seen",
     help="keywords to compute the metrics on",
 )
-def main(config_name, vocab_type):
+@click.option(
+    "--alpha",
+    "alpha",
+    type=click.FLOAT,
+    default=0.5,
+    help="used only for the `vocab-67-seen` setting",
+)
+
+def main(config_name, vocab_type, alpha):
     # predict and store predictions
     hparams = load_hparams(config_name)
     print(json.dumps(hparams, indent=4))
@@ -155,6 +163,8 @@ def main(config_name, vocab_type):
 
     if vocab_type.startswith("vocab-67-unseen"):
         α = 1.0
+    else:
+        α = alpha
 
     scores = compute_scores(config_name, vocab, samples, α)
     labels = np.vstack([labels_loader(s) for s in samples])
