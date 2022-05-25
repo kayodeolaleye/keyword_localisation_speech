@@ -585,6 +585,8 @@ class Flickr8kDataset(AudioDataset):
 
 
 class Flickr8kYorubaDataset(AudioDataset):
+    DATA_PATH = "/home/doneata/data/flickr8k-yoruba"
+
     def __init__(
         self,
         *,
@@ -602,26 +604,26 @@ class Flickr8kYorubaDataset(AudioDataset):
         super().__init__(
             audio_features_type, to_normalize_audio_features, "yoruba", is_train
         )
-        self.data_path = "/home/doneata/data/flickr8k-yoruba"
         self.samples = self.load_samples(filelist, split)
         self.load_target = TARGET_LOADERS[target_type]()
 
     def load_transcripts(self):
-        file_transcript = os.path.join(self.data_path, "flickr8k.yo.txt")
+        file_transcript = os.path.join(self.DATA_PATH, "flickr8k.yo.txt")
         return dict(load(file_transcript, parse_token))
 
     def get_audio_path(self, sample_name: KeyAudio):
         # Since there is a single speaker, the audio files are not suffixed
         # with the speaker id, for example, "_0"
         name = sample_name.to_key_image().value
-        return os.path.join(self.data_path, "wavs-16khz", name + ".wav")
+        return os.path.join(self.DATA_PATH, "wavs-16khz", name + ".wav")
 
     def get_image_path(self, sample_name: Union[KeyAudio, KeyImage]):
         return get_flickr_image_path(sample_name)
 
-    def load_samples(self, filelist: str, split: Split) -> List[KeyAudio]:
+    @staticmethod
+    def load_samples(filelist: str, split: Split) -> List[KeyAudio]:
         name = filelist + "-" + split + ".txt"
-        path = os.path.join(self.data_path, "filelists", name)
+        path = os.path.join(Flickr8kYorubaDataset.DATA_PATH, "filelists", name)
         parse = lambda line: line.strip() + "_0"
         return list(map(KeyAudio, load(path, parse)))
 
