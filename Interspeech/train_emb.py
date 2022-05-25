@@ -632,6 +632,7 @@ DATASETS = {
     "flickr8k": Flickr8kDataset,
     "flickr8k-yoruba-tiny": partial(Flickr8kYorubaDataset, filelist="tiny"),
     "flickr8k-yoruba-abuja": partial(Flickr8kYorubaDataset, filelist="abuja"),
+    "flickr8k-yoruba-lagos": partial(Flickr8kYorubaDataset, filelist="lagos"),  # v5
 }
 
 
