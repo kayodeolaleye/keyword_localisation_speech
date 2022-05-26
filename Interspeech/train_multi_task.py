@@ -145,7 +145,7 @@ def train(hparams):
     scheduler_cosine = CosineAnnealingScheduler(
         optimizer,
         "lr",
-        start_value=HPARAMS["lr"],
+        start_value=hparams["lr"],
         end_value=0,
         cycle_size=cycle_size,
     )
