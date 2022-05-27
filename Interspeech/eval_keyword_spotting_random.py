@@ -10,7 +10,7 @@ from train_emb import (
     LabelsTextLoader,
 )
 
-from predict_emb import VOCAB_CHOICES
+from predict_emb import VOCAB_CHOICES, eval_keyword_spotting_1
 
 
 @click.command()
@@ -31,11 +31,7 @@ def main(vocab_type):
     scores = np.random.rand(num_samples, num_words)
     labels = np.vstack([labels_loader(s) for s in samples])
 
-    mean_ap = 100 * average_precision_score(labels, scores)
-    word_ap = [
-        (word, 100 * average_precision_score(labels[:, i], scores[:, i]))
-        for word, i in vocab.items()
-    ]
+    mean_ap, word_ap = eval_keyword_spotting_1(scores, labels, vocab)
 
     for word, ap in word_ap:
         print("{:10s} {:5.2f}%".format(word, ap))
