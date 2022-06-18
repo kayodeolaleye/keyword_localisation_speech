@@ -122,9 +122,10 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, a
         p_at_10_loc.append(cur_p_at_10_loc)
 
         # P@N for keyword spotting for localisation
-        if sum(y_true_loc) == 0:
-            continue
-        cur_p_at_n_loc = float(sum(y_true_loc[:sum(y_true_loc)])) / sum(y_true_loc)
+        # if sum(y_true_loc) == 0:
+        #     continue
+        # cur_p_at_n_loc = float(sum(y_true_loc[:sum(y_true_loc)])) / sum(y_true_loc)
+        cur_p_at_n_loc = float(sum(y_true_loc[:sum(y_true)])) / sum(y_true)
         p_at_n_loc.append(cur_p_at_n_loc)
 
         if analyze:

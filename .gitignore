@@ -20,6 +20,31 @@ Interspeech/__pycache__/
 Interspeech/runs/
 Interspeech/.ipynb_checkpoints/
 
+Interspeech_no_Trimming/data/*
+Interspeech_no_Trimming/trained_models/
+Interspeech_no_Trimming/models/__pycache__
+Interspeech_no_Trimming/plots/
+Interspeech_no_Trimming/__pycache__/
+Interspeech_no_Trimming/runs/
+Interspeech_no_Trimming/.ipynb_checkpoints/
+
+Cross_lingual_localisation/data/*
+Cross_lingual_localisation/trained_models/
+Cross_lingual_localisation/models/__pycache__
+Cross_lingual_localisation/plots/
+Cross_lingual_localisation/__pycache__/
+Cross_lingual_localisation/runs/
+Cross_lingual_localisation/.ipynb_checkpoints/
+Cross_lingual_localisation/outputs/
+
+English_5000/data/*
+English_5000/trained_models/
+English_5000/models/__pycache__
+English_5000/plots/
+English_5000/__pycache__/
+English_5000/runs/
+English_5000/.ipynb_checkpoints/
+English_5000/outputs/
 
 
 

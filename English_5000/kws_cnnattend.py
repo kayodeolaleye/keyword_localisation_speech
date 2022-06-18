@@ -9,7 +9,7 @@ import argparse
 
 import sklearn.metrics as metrics
 
-from utils import extract_feature, get_logger, get_token_dur_dict
+from utils import extract_feature_test, get_logger, get_token_dur_dict
 from os import path
 # from models.psc import PSC
 
@@ -107,9 +107,10 @@ def eval_kws(sigmoid_dict, vocab, keyword_counts, label_dict, target_dur_dict, a
         p_at_10_loc.append(cur_p_at_10_loc)
 
         # P@N for keyword spotting for localisation
-        if sum(y_true_loc) == 0:
-            continue
-        cur_p_at_n_loc = float(sum(y_true_loc[:sum(y_true_loc)])) / sum(y_true_loc)
+        # if sum(y_true_loc) == 0:
+        #     continue
+        # cur_p_at_n_loc = float(sum(y_true_loc[:sum(y_true_loc)])) / sum(y_true_loc)
+        cur_p_at_n_loc = float(sum(y_true_loc[:sum(y_true)])) / sum(y_true)
         p_at_n_loc.append(cur_p_at_n_loc)
 
         if analyze:
@@ -194,7 +195,7 @@ if __name__ == "__main__":
         wave = sample["wave"]
         gt_trn = sample["trn"]
         target_dur = sample["dur"]
-        feature = extract_feature(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
+        feature = extract_feature_test(input_file=wave, feature='mfcc', dim=13, cmvn=True, delta=True, delta_delta=True)
         padded_input, input_length = pad(feature)
         padded_input = torch.from_numpy(padded_input).unsqueeze(0).to(device)
         input_length = torch.tensor([input_length]).to(device)
