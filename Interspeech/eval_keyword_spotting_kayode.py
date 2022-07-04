@@ -1,5 +1,6 @@
 import click
 import pdb
+import sys
 
 import numpy as np
 
@@ -15,7 +16,9 @@ from predict_emb import VOCAB_CHOICES
 
 
 def main():
-    data = np.load("output/yoruba-results-1.npz")
+    v = sys.argv[1]
+    assert v in "123"
+    data = np.load(f"output/yoruba-results-{v}.npz")
     samples = Flickr8kYorubaDataset.load_samples("lagos", "test")
     samples = [s for s in samples if s.value in data.keys()]
 
@@ -37,7 +40,6 @@ def main():
     for word, ap in word_ap:
         print("{:10s} {:5.2f}%".format(word, ap))
     print("{:10s} {:5.2f}%".format("mean", mean_ap))
-    print()
 
 
 if __name__ == "__main__":

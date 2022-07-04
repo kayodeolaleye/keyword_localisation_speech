@@ -597,10 +597,10 @@ class Flickr8kYorubaDataset(AudioDataset):
         is_train: bool,
         to_normalize_audio_features: bool,
     ):
-        assert target_type in {
-            "features-image-clip",
-            "dummy",
-        }, f"Target type {target_type} is not supported"
+        # assert target_type in {
+        #     "features-image-clip",
+        #     "dummy",
+        # }, f"Target type {target_type} is not supported"
         super().__init__(
             audio_features_type, to_normalize_audio_features, "yoruba", is_train
         )

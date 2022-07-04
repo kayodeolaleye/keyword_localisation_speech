@@ -65,9 +65,14 @@ def train(hparams):
     λ = hparams["λ"]
 
     def loss_fn(pred, true):
-        loss1 = loss_features(pred["logits-emb"], true["target-ind"])
-        loss2 = loss_labels(pred["logits-clf"], true["target-clf"])
-        return loss1 + λ * loss2
+        if λ == 0:
+            return loss_features(pred["logits-emb"], true["target-ind"])
+        elif λ == "inf":
+            return loss_labels(pred["logits-clf"], true["target-clf"])
+        else:
+            loss1 = loss_features(pred["logits-emb"], true["target-ind"])
+            loss2 = loss_labels(pred["logits-clf"], true["target-clf"])
+            return loss1 + λ * loss2
 
     def prepare_batch(batch, device, non_blocking):
         batch = _prepare_batch(batch, device, non_blocking)

@@ -271,10 +271,13 @@ def compute_keyword_spotting_scores(
 
 
 def eval_keyword_spotting_1(scores, labels, vocab):
-    ap = 100 * average_precision_score(labels, scores)
+    # ignore words for which there are no true positives
+    idxs = labels.sum(axis=0) > 0
+    ap = 100 * average_precision_score(labels[:, idxs], scores[:, idxs])
     word_ap = [
         (word, 100 * average_precision_score(labels[:, i], scores[:, i]))
         for word, i in vocab.items()
+        if idxs[i]
     ]
     return ap, word_ap
 
@@ -314,6 +317,12 @@ for what in ["logits-cls", "audio-emb"]:
 for what in ["logits-cls", "audio-emb"]:
     name = f"multi-task-{what}"
     LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
+
+
+for what in ["logits-cls", "audio-emb"]:
+    for λ in "0 0.01 0.1 1 10 100 inf".split():
+        name = f"yoruba-multi-task-lambda-{λ}-{what}"
+        LOADERS[f"audio-{name}"] = partial(FeaturesAudioCLIPLoader, name=name)
 
 
 MODALITIES = ["audio", "image", "text"]
