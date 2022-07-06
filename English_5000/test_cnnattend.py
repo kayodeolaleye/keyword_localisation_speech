@@ -68,6 +68,7 @@ if __name__ == "__main__":
     score = 0
     total = 0
     all_full_sigmoid_out = {}
+    all_attention_weight = {}
     for i in tqdm(range(num_samples)):
         sample = samples[i]
         wave = sample["wave"]
@@ -100,6 +101,7 @@ if __name__ == "__main__":
         # Evaluating model's performance on localisation of keywords in one utterance
         
         attention_weights = attention_weights.squeeze(0)[:, :input_length]
+        all_attention_weight[key] = attention_weights.cpu().numpy()
         # print("Attention weights score shape: ", attention_weights.shape)
         tokens = list(VOCAB.keys())
         valid_hyp_trn = [(tok.casefold(), VOCAB[tok.casefold()]) for tok in tokens if tok.casefold() in hyp_trn] # List of words detected by model with a prob > a threshold
@@ -138,9 +140,10 @@ if __name__ == "__main__":
 
     # Compute precision, recall and fscore for localisation task
     l_precision, l_recall, l_fscore = eval_localisation_prf(l_n_tp, l_n_fp, l_n_fn)
-
-    ensure_folder("outputs")
-    np.savez_compressed("outputs/all_full_sigmoid_out.npz", **all_full_sigmoid_out)
+    out_dir = "outputs/" + args.model_path
+    ensure_folder(out_dir)
+    np.savez_compressed(out_dir + "/all_full_sigmoid_out.npz", **all_full_sigmoid_out)
+    np.savez_compressed(out_dir + "/all_attention_weight.npz", **all_attention_weight)
     # Print status
     print
     print("-"*79)
