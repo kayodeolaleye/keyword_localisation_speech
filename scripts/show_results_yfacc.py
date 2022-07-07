@@ -9,7 +9,7 @@ import numpy as np
 import streamlit as st
 import textgrid
 
-st.set_page_config(layout="wide")
+# st.set_page_config(layout="wide")
 
 
 PATH_DATA = "/home/doneata/data/flickr8k-yoruba/Flickr8k_Yoruba_v6"
@@ -55,7 +55,7 @@ def load_predictions(model):
 
 
 def load_alignment(key):
-    path = os.path.join(PATH_DATA, "Flickr8k_alignment", key + "_0" + ".TextGrid")
+    path = os.path.join(PATH_DATA, "Flickr8k_alignment", key + ".TextGrid")
     return [
         ((int(i.minTime * 100), int(i.maxTime * 100)), i.mark.casefold())
         for i in textgrid.TextGrid.fromFile(path)[0]
@@ -65,18 +65,17 @@ def load_alignment(key):
 @st.cache(allow_output_mutation=True)
 def load_data(model):
     samples = load_samples("test")
-
-    model = "1652875528_cnnattend_soft"
     utt_scores, loc_scores, loc_segments = load_predictions(model)
 
     for sample in samples:
         key = sample["key"]
-        key0 = sample["key"] + "_0"
+        key = key + "_0"
+        sample["key"] = key
 
         try:
-            sample["utt-score"] = utt_scores[key0]
-            sample["scores"] = loc_scores[key0]
-            assert loc_scores[key0].shape == (67, 800)
+            sample["utt-score"] = utt_scores[key]
+            sample["scores"] = loc_scores[key]
+            assert loc_scores[key].shape == (67, 800)
         except:
             print("WARN missing scores:   ", key)
 
@@ -98,16 +97,39 @@ id_to_word_en = {i: w for i, (w, _) in enumerate(vocab)}
 id_to_word_yo = {i: w for i, (_, w) in enumerate(vocab)}
 
 
-def is_localised_word(sample, word_id):
-    word_yo = id_to_word_yo[word_id].casefold()
+def get_word_dict(word_id, lang):
+    if lang == "en":
+        return {
+            "id": word_id,
+            "lang": lang,
+            "text": id_to_word_en[word_id],
+        }
+    elif lang == "yo":
+        return {
+            "id": word_id,
+            "lang": lang,
+            "text": id_to_word_yo[word_id],
+        }
+    else:
+        assert False
+
+
+def is_localised_word(sample, word_dict):
+    word = word_dict["text"].casefold()
+    word_id = word_dict["id"]
+
     scores = sample["scores"][word_id]
     text = sample["alignment"]
+
     τ = np.argmax(scores)
-    is_found = any(s <= τ <= e for (s, e), w in text if w.casefold() == word_yo)
-    # print(word_yo, τ, is_found)
+    is_found = any(s <= τ <= e for (s, e), w in text if w.casefold() == word)
+
+    # print(word, τ, is_found)
     # print(sample["utt-score"][word_id])
     # print(text)
     # print()
+    # pdb.set_trace()
+
     return is_found
 
 

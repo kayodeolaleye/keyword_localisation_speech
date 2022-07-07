@@ -2,14 +2,18 @@
 import numpy as np
 
 from show_results_yfacc import (
-    load_data,
+    get_word_dict,
+    load_data as load_data_yo,
     num_words,
     id_to_word_en,
     is_localised_word,
 )
 
+from plot_yfacc_yo_vs_en import load_data_en
+
 
 θ = 0.5
+lang = "en"
 
 
 def is_detected(sample, word_index):
@@ -17,8 +21,9 @@ def is_detected(sample, word_index):
 
 
 def get_true_positives(word_index):
+    word_dict = get_word_dict(word_index, lang)
     return sum(
-        is_detected(sample, word_index) and is_localised_word(sample, word_index)
+        is_detected(sample, word_index) and is_localised_word(sample, word_dict)
         for sample in samples
     )
 
@@ -35,10 +40,17 @@ def compute_precision_keyword(word_index):
     return pos / num
 
 
-samples = load_data("yor-5k-init")
+if lang == "en":
+    samples = load_data_en("en-5k")
+elif lang == "yo":
+    samples = load_data_yo("yor-5k-init")
+else:
+    assert False
+
 pos = [get_true_positives(i) for i in range(num_words)]
 num = [get_num_retrieved(i) for i in range(num_words)]
 
+print(len(samples))
 print(np.sum(pos))
 print(np.sum(num))
 print(100 * np.sum(pos) / np.sum(num))
