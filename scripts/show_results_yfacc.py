@@ -63,8 +63,7 @@ def load_alignment(key):
 
 
 @st.cache(allow_output_mutation=True)
-def load_data():
-    vocab = load_vocab()
+def load_data(model):
     samples = load_samples("test")
 
     model = "1652875528_cnnattend_soft"
@@ -89,10 +88,10 @@ def load_data():
 
     samples = [sample for sample in samples if "scores" in sample]
 
-    return samples, vocab
+    return samples
 
 
-samples, vocab = load_data()
+vocab = load_vocab()
 num_words = len(vocab)
 
 id_to_word_en = {i: w for i, (w, _) in enumerate(vocab)}
@@ -104,7 +103,12 @@ def is_localised_word(sample, word_id):
     scores = sample["scores"][word_id]
     text = sample["alignment"]
     τ = np.argmax(scores)
-    return any(s <= τ <= e for (s, e), w in text if w.casefold() == word_yo)
+    is_found = any(s <= τ <= e for (s, e), w in text if w.casefold() == word_yo)
+    # print(word_yo, τ, is_found)
+    # print(sample["utt-score"][word_id])
+    # print(text)
+    # print()
+    return is_found
 
 
 def is_localised(sample):
@@ -189,6 +193,7 @@ def plot_predictions(ax, sample, word_selected, xlim):
 
 
 def show_samples():
+    samples = load_data()
     words_en = [w for w, _ in vocab]
 
     with st.sidebar:
@@ -245,6 +250,8 @@ def show_samples():
 
 
 def show_evaluate_spotting_localisation():
+    samples = load_data()
+
     utt_scores = np.vstack([sample["utt-score"] for sample in samples])
     is_loc_mat = np.vstack([is_localised(sample) for sample in samples])
 
